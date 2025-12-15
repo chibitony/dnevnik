@@ -181,10 +181,12 @@
 
         <!-- Меню вкладок -->
         <nav class="flex justify-around bg-white p-2 rounded-full shadow-lg mb-6">
-            <button class="tab-button active flex-1 py-2 px-4 text-sm md:text-base smooth-transition" data-view="input" onclick="switchView('input')">Запись</button>
-            <button class="tab-button flex-1 py-2 px-4 text-sm md:text-base smooth-transition" data-view="calendar" onclick="switchView('calendar')">Календарь</button>
-            <button class="tab-button flex-1 py-2 px-4 text-sm md:text-base smooth-transition" data-view="charts" onclick="switchView('charts')">Аналитика</button>
-            <button class="tab-button flex-1 py-2 px-4 text-sm md:text-base smooth-transition" data-view="settings" onclick="switchView('settings')">Настройки</button>
+            <!-- Уменьшаем px-4 до px-3 на всех кнопках для экономии места на мобильных -->
+            <button class="tab-button active flex-1 py-2 px-3 text-sm md:text-base smooth-transition" data-view="input" onclick="switchView('input')">Запись</button>
+            <button class="tab-button flex-1 py-2 px-3 text-sm md:text-base smooth-transition" data-view="calendar" onclick="switchView('calendar')">Календарь</button>
+            <button class="tab-button flex-1 py-2 px-3 text-sm md:text-base smooth-transition" data-view="charts" onclick="switchView('charts')">Аналитика</button>
+            <!-- Убираем text-lg с мобильной версии для иконки, чтобы она не расширяла кнопку -->
+            <button class="tab-button flex-1 py-2 px-3 text-sm md:text-base smooth-transition" data-view="settings" onclick="switchView('settings')" title="Настройки">&#x2699;</button>
         </nav>
 
         <!-- --- ВИД 1: ВВОД ДАННЫХ --- -->
@@ -1261,7 +1263,7 @@
             const loading = document.getElementById('report-ai-loading');
             
             reportOutput.innerHTML = '';
-            loading.classList.remove('hidden');
+            loading.classList.add('hidden');
 
             await callGeminiApi(systemPrompt, userQuery, reportOutput, null, null);
             loading.classList.add('hidden');
@@ -1362,3 +1364,4 @@
     </script>
 </body>
 </html>
+
