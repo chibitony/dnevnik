@@ -12,10 +12,11 @@
     <!-- Скрипт для инициализации и работы с данными (Local Storage) -->
     <script>
         // --- Глобальные переменные UI и Данных ---
-        window.dailyLogs = []; // Глобальный массив для данных
+        window.dailyLogs = []; // Глобальный массив всех записей
+        let dailyAverages = {}; // Кэш для средних значений по датам
         const STORAGE_KEY = 'dailyMoodLogs';
 
-        let currentMood = 3; // Значение по умолчанию
+        let currentMood = 3; 
         let currentMonth = new Date().getMonth();
         let currentYear = new Date().getFullYear();
         let currentChartPeriod = 'week';
@@ -30,67 +31,6 @@
             2: { bg: '#FFCCBC', border: '#FF5722', label: 'Не очень' }, // Pastel Orange (Оранжевый)
             1: { bg: '#FFCDD2', border: '#F44336', label: 'Плохо' }, // Pastel Red (Красный)
         };
-        
-        // --- Логика Local Storage ---
-
-        function loadDailyLogsFromLocal() {
-            try {
-                const data = localStorage.getItem(STORAGE_KEY);
-                if (data) {
-                    const parsedLogs = JSON.parse(data);
-                    // Сортируем в памяти по дате
-                    window.dailyLogs = parsedLogs.sort((a, b) => (a.date < b.date ? -1 : 1));
-                } else {
-                    window.dailyLogs = [];
-                }
-            } catch (error) {
-                console.error("Ошибка загрузки данных из Local Storage:", error);
-                window.dailyLogs = [];
-            }
-            console.log("Данные загружены:", window.dailyLogs.length, "записей.");
-            updateUI();
-        }
-
-        function saveDailyLogsToLocal() {
-            try {
-                // Находим текущую запись, которую мы хотим обновить/добавить
-                const date = document.getElementById('date-input').value;
-                const mood = currentMood;
-                const stress = parseInt(document.getElementById('stress-slider').value);
-                const energy = parseInt(document.getElementById('energy-slider').value);
-                const note = document.getElementById('note-input').value.trim();
-
-                const dataToSave = {
-                    date: date,
-                    mood: mood,
-                    stress: stress,
-                    energy: energy,
-                    note: note,
-                    timestamp: Date.now()
-                };
-
-                // Ищем существующий индекс
-                const existingIndex = window.dailyLogs.findIndex(log => log.date === date);
-
-                if (existingIndex !== -1) {
-                    // Обновляем существующую запись
-                    window.dailyLogs[existingIndex] = dataToSave;
-                } else {
-                    // Добавляем новую запись
-                    window.dailyLogs.push(dataToSave);
-                }
-
-                // Сохраняем весь массив в Local Storage
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(window.dailyLogs));
-                
-                // Обновляем UI после сохранения
-                updateUI();
-                showModal("Успех", "Ваша запись дня сохранена локально!");
-            } catch (error) {
-                console.error("Ошибка при сохранении данных в Local Storage:", error);
-                showModal("Ошибка сохранения", `Не удалось сохранить данные: ${error.message}`);
-            }
-        }
         
         // --- Вспомогательные функции ---
 
@@ -111,14 +51,89 @@
         }
 
         function getMoodColor(mood) {
-            return MOOD_COLORS[mood] ? MOOD_COLORS[mood].bg : '#E0E0E0';
+            // Округляем до ближайшего целого для получения цвета, если mood - среднее значение
+            const roundedMood = Math.round(mood);
+            return MOOD_COLORS[Math.min(5, Math.max(1, roundedMood))]?.bg || '#E0E0E0';
         }
 
         function getStressColor(stress) {
-            // 1 (низкий) -> Зеленый, 10 (высокий) -> Красный
+            // Градиент от 1 (зеленый) до 10 (красный)
             if (stress <= 3) return MOOD_COLORS[4].bg; // Greenish
             if (stress <= 7) return MOOD_COLORS[3].bg; // Yellowish
             return MOOD_COLORS[1].bg; // Reddish
+        }
+
+        // --- Логика Данных и Local Storage ---
+
+        function calculateDailyAverages(logs) {
+            const dailyData = {};
+            
+            logs.forEach(log => {
+                // Преобразуем id в число, чтобы убедиться, что id сработает для сортировки
+                log.id = log.id || log.timestamp || Date.parse(log.date); 
+
+                if (!dailyData[log.date]) {
+                    dailyData[log.date] = { 
+                        totalMood: 0, 
+                        totalStress: 0, 
+                        totalEnergy: 0, 
+                        count: 0, 
+                        latestLog: log // Храним самую свежую запись по умолчанию
+                    };
+                }
+                dailyData[log.date].totalMood += log.mood;
+                dailyData[log.date].totalStress += log.stress;
+                dailyData[log.date].totalEnergy += log.energy;
+                dailyData[log.date].count++;
+                
+                // Обновляем "самую свежую" запись, используя ID как timestamp
+                if (log.id > dailyData[log.date].latestLog.id) {
+                    dailyData[log.date].latestLog = log;
+                }
+            });
+
+            const averages = {};
+            for (const date in dailyData) {
+                const d = dailyData[date];
+                averages[date] = {
+                    mood: d.totalMood / d.count,
+                    stress: d.totalStress / d.count,
+                    energy: d.totalEnergy / d.count,
+                    count: d.count,
+                    latestLog: d.latestLog
+                };
+            }
+            return averages;
+        }
+
+        function loadDailyLogsFromLocal() {
+            try {
+                const data = localStorage.getItem(STORAGE_KEY);
+                if (data) {
+                    window.dailyLogs = JSON.parse(data);
+                } else {
+                    window.dailyLogs = [];
+                }
+            } catch (error) {
+                console.error("Ошибка загрузки данных из Local Storage:", error);
+                window.dailyLogs = [];
+            }
+            // Пересчитываем средние значения
+            dailyAverages = calculateDailyAverages(window.dailyLogs);
+            updateUI();
+            loadDataForDate(); // Обновляем форму после загрузки
+        }
+
+        function saveDailyLogsToLocal() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(window.dailyLogs));
+                // Пересчитываем средние значения после сохранения
+                dailyAverages = calculateDailyAverages(window.dailyLogs);
+                updateUI();
+            } catch (error) {
+                console.error("Ошибка при сохранении данных в Local Storage:", error);
+                showModal("Ошибка сохранения", `Не удалось сохранить данные: ${error.message}`);
+            }
         }
         
         // --- Обработчики ввода ---
@@ -141,52 +156,36 @@
             document.getElementById('energy-value').textContent = energySlider.value;
         }
 
-        function setupInputListeners() {
-            const dateInput = document.getElementById('date-input');
-            dateInput.value = getTodayDateString();
-
-            // Mood options listener
-            const moodOptions = document.querySelectorAll('.rating-option[data-mood]');
-            moodOptions.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const mood = parseInt(btn.dataset.mood);
-                    updateMoodSelection(mood);
-                });
-            });
-
-            // Slider listeners
-            document.getElementById('stress-slider').addEventListener('input', updateSliderValues);
-            document.getElementById('energy-slider').addEventListener('input', updateSliderValues);
-            
-            // Выбираем mood 3 по умолчанию и обновляем ползунки
-            updateMoodSelection(currentMood);
-            updateSliderValues();
-            
-            // Загрузка данных для выбранной даты (если есть)
-            dateInput.addEventListener('change', loadDataForDate);
-            loadDataForDate(); // Загрузить данные для сегодняшней даты при старте
-        }
-        
         function loadDataForDate() {
             const date = document.getElementById('date-input').value;
-            const log = window.dailyLogs.find(l => l.date === date);
-
+            
+            // Получаем средние данные и последнюю запись для этой даты
+            const dailyData = dailyAverages[date];
+            const log = dailyData ? dailyData.latestLog : null;
+            
             const stressSlider = document.getElementById('stress-slider');
             const energySlider = document.getElementById('energy-slider');
             const noteInput = document.getElementById('note-input');
+            const entryCountSpan = document.getElementById('entry-count');
+            const deleteButton = document.getElementById('delete-button');
 
-            if (log) {
-                // Загружаем данные из лога
+            const count = dailyData ? dailyData.count : 0;
+            entryCountSpan.textContent = count;
+            
+            if (count > 0) {
+                // Если есть записи, подгружаем последнюю и активируем кнопку удаления
                 updateMoodSelection(log.mood);
                 stressSlider.value = log.stress;
                 energySlider.value = log.energy;
                 noteInput.value = log.note || '';
+                deleteButton.classList.remove('hidden');
             } else {
-                // Сбрасываем к значениям по умолчанию
+                // Сбрасываем к значениям по умолчанию, если записей нет
                 updateMoodSelection(3);
                 stressSlider.value = 5;
                 energySlider.value = 5;
                 noteInput.value = '';
+                deleteButton.classList.add('hidden');
             }
             updateSliderValues();
         }
@@ -198,8 +197,72 @@
                 return;
             }
 
+            const dataToSave = {
+                date: date,
+                mood: currentMood,
+                stress: parseInt(document.getElementById('stress-slider').value),
+                energy: parseInt(document.getElementById('energy-slider').value),
+                note: document.getElementById('note-input').value.trim(),
+                id: Date.now() // Уникальный идентификатор
+            };
+            
+            // Добавляем новую запись в массив
+            window.dailyLogs.push(dataToSave);
             saveDailyLogsToLocal();
-            // После сохранения, данные для текущей даты обновятся автоматически
+
+            // Очищаем форму, чтобы новая запись была чистой (кроме даты)
+            document.getElementById('note-input').value = '';
+            updateMoodSelection(3);
+            document.getElementById('stress-slider').value = 5;
+            document.getElementById('energy-slider').value = 5;
+            updateSliderValues();
+            loadDataForDate(); // Обновление счетчика записей
+        }
+
+        window.handleDelete = () => {
+            const dateToDelete = document.getElementById('date-input').value;
+            
+            showModal("Подтверждение", `Вы уверены, что хотите удалить ВСЕ ${dailyAverages[dateToDelete]?.count || 0} записи за ${dateToDelete}?`);
+            
+            // Переопределяем кнопку OK для удаления
+            document.querySelector('#modal button').onclick = () => {
+                closeModal();
+                
+                const initialLength = window.dailyLogs.length;
+                
+                // Фильтруем все записи, кроме тех, что соответствуют дате
+                window.dailyLogs = window.dailyLogs.filter(log => log.date !== dateToDelete);
+                
+                if (window.dailyLogs.length < initialLength) {
+                    saveDailyLogsToLocal();
+                    // Сбрасываем форму после удаления
+                    loadDataForDate(); 
+                    showModal("Успех", `Все записи за ${dateToDelete} удалены.`);
+                } else {
+                    showModal("Ошибка", "Записей для удаления не найдено.");
+                }
+
+                // Восстанавливаем стандартное поведение кнопки OK
+                document.querySelector('#modal button').onclick = closeModal;
+            };
+        }
+
+        function setupInputListeners() {
+            const dateInput = document.getElementById('date-input');
+            dateInput.value = getTodayDateString();
+
+            const moodOptions = document.querySelectorAll('.rating-option[data-mood]');
+            moodOptions.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const mood = parseInt(btn.dataset.mood);
+                    updateMoodSelection(mood);
+                });
+            });
+
+            document.getElementById('stress-slider').addEventListener('input', updateSliderValues);
+            document.getElementById('energy-slider').addEventListener('input', updateSliderValues);
+            
+            dateInput.addEventListener('change', loadDataForDate);
         }
 
         // --- Навигация и Обновление UI ---
@@ -215,7 +278,6 @@
             });
             document.querySelector(`.tab-button[data-view="${viewId}"]`).classList.add('active');
 
-            // Специальные обновления при переключении
             if (viewId === 'calendar') {
                 renderCalendar();
             } else if (viewId === 'charts') {
@@ -233,6 +295,7 @@
             } else if (activeTab === 'charts') {
                 updateCharts();
             }
+            loadDataForDate(); // Обновляем форму, если изменились данные
         }
 
         // --- Логика Календаря ---
@@ -246,11 +309,8 @@
             const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
             const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0);
             
-            // Нормализация дня недели: Вс=0, Пн=1...
             let startDay = firstDayOfMonth.getDay(); 
-            // Превращаем Вс (0) в 7, чтобы Пн был 1 (согласно ru локали)
             if (startDay === 0) startDay = 7;
-            
             const leadingBlanks = startDay - 1;
 
             // Добавляем пустые ячейки
@@ -264,23 +324,23 @@
             for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
                 const date = new Date(currentYear, currentMonth, day);
                 const dateString = date.toISOString().split('T')[0];
-                const log = window.dailyLogs.find(l => l.date === dateString);
+                const dailyData = dailyAverages[dateString];
                 
                 const dayCell = document.createElement('div');
                 dayCell.className = 'day-cell text-gray-800 font-medium relative';
                 dayCell.textContent = day;
 
-                if (log) {
-                    const moodColor = getMoodColor(log.mood);
+                if (dailyData) {
+                    const moodColor = getMoodColor(dailyData.mood);
                     dayCell.style.backgroundColor = moodColor;
                     dayCell.classList.add('shadow-inner', 'font-bold', 'text-gray-800');
-                    // Добавление клика для быстрого перехода к записи
+                    // Клик для быстрого перехода к записи
                     dayCell.onclick = () => {
                         document.getElementById('date-input').value = dateString;
-                        loadDataForDate();
                         switchView('input');
+                        loadDataForDate(); // Загрузит данные для новой даты
                     };
-                    dayCell.setAttribute('title', `Настроение: ${MOOD_COLORS[log.mood].label}\nСтресс: ${log.stress}\nЗаметка: ${log.note || 'Нет'}`);
+                    dayCell.setAttribute('title', `Ср. Настроение: ${dailyData.mood.toFixed(1)} (${dailyData.count} зап.)\nСр. Стресс: ${dailyData.stress.toFixed(1)}`);
                 } else {
                     dayCell.style.backgroundColor = 'var(--p-bg)';
                 }
@@ -307,10 +367,10 @@
             let startDate;
 
             if (period === 'week') {
-                // Неделя начинается с понедельника (Пн=1, Вс=0).
+                // Неделя начинается с понедельника
                 let dayOfWeek = today.getDay(); 
-                if (dayOfWeek === 0) dayOfWeek = 7; // Делаем Вс седьмым днем
-                const diff = dayOfWeek - 1; // Смещаем, чтобы получить понедельник
+                if (dayOfWeek === 0) dayOfWeek = 7; 
+                const diff = dayOfWeek - 1; 
                 
                 startDate = new Date(today);
                 startDate.setDate(today.getDate() - diff);
@@ -321,13 +381,6 @@
             const endDate = new Date(today);
             endDate.setHours(23, 59, 59, 999);
             
-            const filtered = window.dailyLogs.filter(log => {
-                const logDate = new Date(log.date);
-                // Сравниваем только даты (без времени)
-                return logDate >= startDate && logDate <= endDate;
-            });
-
-            // Создаем массив дат для выбранного периода
             const dates = [];
             let cursor = new Date(startDate);
             while (cursor <= endDate) {
@@ -335,11 +388,9 @@
                 cursor.setDate(cursor.getDate() + 1);
             }
             
-            // Сопоставляем данные с каждой датой, вставляя null для пропущенных дней
-            const dataMap = new Map(filtered.map(log => [log.date, log]));
-            const periodData = dates.map(date => dataMap.get(date));
+            // Сопоставляем средние данные с каждой датой
+            const periodData = dates.map(date => dailyAverages[date]);
             
-            // Форматируем метки для графика
             const labels = dates.map(dateString => {
                 const date = new Date(dateString);
                 return period === 'week' ? date.toLocaleDateString('ru-RU', { weekday: 'short' }) : date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'numeric' });
@@ -355,7 +406,6 @@
         }
         
         function createStressGradient(ctx, chartArea) {
-            // Зеленый (низкий) к Красному (высокий)
             return createGradient(ctx, chartArea, [
                 { offset: 0.0, color: MOOD_COLORS[4].bg }, // Low (Green)
                 { offset: 0.5, color: MOOD_COLORS[3].bg }, // Mid (Yellow)
@@ -365,8 +415,9 @@
 
         function renderCharts(period) {
             const { labels, periodData } = filterLogsByPeriod(period);
-            const moodData = periodData.map(log => log ? log.mood : null);
-            const stressData = periodData.map(log => log ? log.stress : null);
+            // Извлекаем средние значения. Используем null для дней без записей.
+            const moodData = periodData.map(data => data ? data.mood : null);
+            const stressData = periodData.map(data => data ? data.stress : null);
 
             // 1. График Настроения (1-5)
             if (moodChartInstance) moodChartInstance.destroy();
@@ -376,11 +427,12 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Настроение',
+                        label: 'Среднее Настроение',
                         data: moodData,
-                        borderColor: 'var(--p-text)', // Цвет линии (фиолетовый)
-                        tension: 0.4, // Плавная линия
-                        pointBackgroundColor: periodData.map(log => log ? getMoodColor(log.mood) : MOOD_COLORS[3].border),
+                        borderColor: 'var(--p-text)', 
+                        tension: 0.4, 
+                        // Цвет точки теперь зависит от среднего настроения
+                        pointBackgroundColor: periodData.map(data => data ? getMoodColor(data.mood) : MOOD_COLORS[3].border),
                         pointRadius: 6,
                         fill: false
                     }]
@@ -408,13 +460,14 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Стресс',
+                        label: 'Средний Стресс',
                         data: stressData,
-                        tension: 0.4, // Плавная линия
-                        pointBackgroundColor: periodData.map(log => log ? getStressColor(log.stress) : MOOD_COLORS[3].border),
+                        tension: 0.4, 
+                        // Цвет точки зависит от среднего стресса
+                        pointBackgroundColor: periodData.map(data => data ? getStressColor(data.stress) : MOOD_COLORS[3].border),
                         pointRadius: 6,
-                        fill: 'start', // Заливка под линией
-                        borderColor: MOOD_COLORS[1].border, // Красная граница
+                        fill: 'start', 
+                        borderColor: MOOD_COLORS[1].border, 
                         backgroundColor: (context) => {
                             const chart = context.chart;
                             if (chart.chartArea) {
@@ -448,7 +501,7 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             setupInputListeners();
-            loadDailyLogsFromLocal(); // Загрузка данных
+            loadDailyLogsFromLocal(); // Первая загрузка данных
             
             // Навигация
             document.getElementById('nav-tabs').addEventListener('click', (e) => {
@@ -486,14 +539,14 @@
         
         :root {
             /* Pastel Palette */
-            --p-blue: #B3E5FC; /* Отлично (Голубой) */
-            --p-green: #C8E6C9; /* Хорошо (Зеленый) */
-            --p-yellow: #FFF9C4; /* Норм (Желтый) */
-            --p-orange: #FFCCBC; /* Не очень (Оранжевый) */
-            --p-red: #FFCDD2; /* Плохо (Красный) */
-            --p-bg: #F8F8FF; /* Общий фон */
-            --p-text: #6A1B9A; /* Фиолетовый текст */
-            --p-accent: #E1BEE7; /* Светло-фиолетовый акцент */
+            --p-blue: #B3E5FC; 
+            --p-green: #C8E6C9; 
+            --p-yellow: #FFF9C4; 
+            --p-orange: #FFCCBC; 
+            --p-red: #FFCDD2; 
+            --p-bg: #F8F8FF; 
+            --p-text: #6A1B9A; 
+            --p-accent: #E1BEE7; 
         }
 
         body {
@@ -565,6 +618,7 @@
         .day-cell:hover {
             cursor: pointer;
             opacity: 0.8;
+            box-shadow: 0 0 0 2px var(--p-text);
         }
 
         .bg-p-blue { background-color: var(--p-blue); }
@@ -596,6 +650,10 @@
                     <label for="date-input" class="block text-sm font-medium mb-2 text-white">Дата:</label>
                     <input type="date" id="date-input" class="w-full p-2 rounded-lg text-gray-800 focus:ring-2 focus:ring-white" style="border: 1px solid var(--p-accent);" />
                 </div>
+                
+                <p class="text-center text-sm font-semibold" style="color: var(--p-text);">
+                    Записей за этот день: <span id="entry-count" class="font-bold">0</span>. Новая запись будет добавлена.
+                </p>
 
                 <!-- Оценка Дня (Настроение) -->
                 <section class="bg-gray-50 p-4 rounded-xl shadow-md">
@@ -653,9 +711,14 @@
                     <textarea id="note-input" rows="4" class="w-full p-3 rounded-lg border-2 border-gray-200 focus:border-purple-300 focus:ring-0" placeholder="Что произошло сегодня?"></textarea>
                 </section>
 
-                <button id="save-button" onclick="handleSave()" class="w-full py-3 text-lg font-bold rounded-xl text-white shadow-lg transform active:scale-95 transition duration-150" style="background-color: var(--p-text);">
-                    Сохранить Запись
-                </button>
+                <div class="flex space-x-4">
+                    <button id="delete-button" onclick="handleDelete()" class="hidden flex-1 py-3 text-sm font-bold rounded-xl text-white shadow-lg transform active:scale-95 transition duration-150 bg-red-400 hover:bg-red-500">
+                        Удалить записи за день
+                    </button>
+                    <button id="save-button" onclick="handleSave()" class="flex-1 py-3 text-lg font-bold rounded-xl text-white shadow-lg transform active:scale-95 transition duration-150" style="background-color: var(--p-text);">
+                        Добавить Новую Запись
+                    </button>
+                </div>
             </div>
 
             <!-- 2. Вкладка "Календарь" -->
@@ -682,13 +745,13 @@
                 </div>
 
                 <div class="p-3 rounded-xl shadow-md bg-white">
-                    <h3 class="font-semibold mb-2" style="color: var(--p-text);">Легенда Настроения:</h3>
+                    <h3 class="font-semibold mb-2" style="color: var(--p-text);">Легенда Настроения (Ср.):</h3>
                     <div class="flex flex-wrap gap-2">
-                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1 bg-p-blue"></span> Отлично (5)</span>
-                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1 bg-p-green"></span> Хорошо (4)</span>
-                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1 bg-p-yellow"></span> Норм (3)</span>
-                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1 bg-p-orange"></span> Не очень (2)</span>
-                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1 bg-p-red"></span> Плохо (1)</span>
+                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1 bg-p-blue"></span> ~5 (Отлично)</span>
+                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1 bg-p-green"></span> ~4 (Хорошо)</span>
+                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1 bg-p-yellow"></span> ~3 (Норм)</span>
+                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1 bg-p-orange"></span> ~2 (Не очень)</span>
+                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1 bg-p-red"></span> ~1 (Плохо)</span>
                     </div>
                 </div>
             </div>
@@ -705,13 +768,13 @@
 
                 <!-- График Настроения -->
                 <section class="bg-white p-4 rounded-xl shadow-lg">
-                    <h3 class="text-lg font-semibold mb-3" style="color: var(--p-text);">График Настроения</h3>
+                    <h3 class="text-lg font-semibold mb-3" style="color: var(--p-text);">Среднее Настроение (1-5)</h3>
                     <canvas id="moodChart" height="200"></canvas>
                 </section>
 
                 <!-- График Стресса -->
                 <section class="bg-white p-4 rounded-xl shadow-lg">
-                    <h3 class="text-lg font-semibold mb-3" style="color: var(--p-text);">График Стресса</h3>
+                    <h3 class="text-lg font-semibold mb-3" style="color: var(--p-text);">Средний Стресс (1-10)</h3>
                     <canvas id="stressChart" height="200"></canvas>
                 </section>
 
@@ -730,4 +793,5 @@
     </div>
 </body>
 </html>
+
 
