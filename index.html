@@ -9,28 +9,67 @@
     <!-- Chart.js CDN для графиков -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     
-    <!-- Скрипт для инициализации и работы с данными (Local Storage) -->
+    <!-- Скрипт для инициализации и работы с данными -->
     <script>
         // --- Глобальные переменные UI и Данных ---
         window.dailyLogs = []; // Глобальный массив всех записей
         let dailyAverages = {}; // Кэш для средних значений по датам
         const STORAGE_KEY = 'dailyMoodLogs';
+        const THEME_STORAGE_KEY = 'moodDiaryTheme';
 
         let currentMood = 3; 
-        let currentMonth = new Date().getMonth();
-        let currentYear = new Date().getFullYear();
+        let currentMonth = new Date().getMonth(); // Для Календаря
+        let currentYear = new Date().getFullYear(); // Для Календаря
         let currentChartPeriod = 'week';
+        let currentChartDate = new Date(); // Для Графиков (дата конца периода)
+
         let moodChartInstance = null;
         let stressChartInstance = null;
 
-        // --- Цветовая Палитра для JS/Chart.js ---
+        // --- Цветовая Палитра по умолчанию ---
         const MOOD_COLORS = {
-            5: { bg: '#B3E5FC', border: '#03A9F4', label: 'Отлично' }, // Pastel Blue (Голубой)
-            4: { bg: '#C8E6C9', border: '#4CAF50', label: 'Хорошо' }, // Pastel Green (Зеленый)
-            3: { bg: '#FFF9C4', border: '#FFEB3B', label: 'Норм' }, // Pastel Yellow (Желтый)
-            2: { bg: '#FFCCBC', border: '#FF5722', label: 'Не очень' }, // Pastel Orange (Оранжевый)
-            1: { bg: '#FFCDD2', border: '#F44336', label: 'Плохо' }, // Pastel Red (Красный)
+            5: { bg: '#B3E5FC', border: '#03A9F4', label: 'Отлично' },
+            4: { bg: '#C8E6C9', border: '#4CAF50', label: 'Хорошо' },
+            3: { bg: '#FFF9C4', border: '#FFEB3B', label: 'Норм' },
+            2: { bg: '#FFCCBC', border: '#FF5722', label: 'Не очень' },
+            1: { bg: '#FFCDD2', border: '#F44336', label: 'Плохо' },
         };
+        
+        // --- Темы ---
+        const THEMES = {
+            'Lavender': {
+                '--p-blue': '#B3E5FC', '--p-green': '#C8E6C9', '--p-yellow': '#FFF9C4', 
+                '--p-orange': '#FFCCBC', '--p-red': '#FFCDD2', '--p-bg': '#F8F8FF', 
+                '--p-text': '#6A1B9A', '--p-accent': '#E1BEE7'
+            },
+            'Mint': {
+                '--p-blue': '#A7FFEB', '--p-green': '#CCFF90', '--p-yellow': '#F4FF81', 
+                '--p-orange': '#FFFF8D', '--p-red': '#FF8A80', '--p-bg': '#F0FFF0', 
+                '--p-text': '#009688', '--p-accent': '#B2DFDB'
+            },
+            'Peach': {
+                '--p-blue': '#B3E5FC', '--p-green': '#FFCCBC', '--p-yellow': '#FFF9C4', 
+                '--p-orange': '#FFAB91', '--p-red': '#FF8A80', '--p-bg': '#FFF5EE', 
+                '--p-text': '#E64A19', '--p-accent': '#FFCCBC'
+            }
+        };
+
+        function applyTheme(themeName) {
+            const theme = THEMES[themeName] || THEMES['Lavender'];
+            const root = document.documentElement;
+            for (const key in theme) {
+                root.style.setProperty(key, theme[key]);
+            }
+            localStorage.setItem(THEME_STORAGE_KEY, themeName);
+            // Обновляем UI селектора
+            const selector = document.getElementById('theme-selector');
+            if (selector) selector.value = themeName;
+        }
+
+        function loadTheme() {
+            const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) || 'Lavender';
+            applyTheme(savedTheme);
+        }
         
         // --- Вспомогательные функции ---
 
@@ -44,6 +83,8 @@
         function closeModal() {
             document.getElementById('modal').classList.add('hidden');
             document.getElementById('modal').classList.remove('flex');
+            // Восстанавливаем стандартное поведение кнопки OK после модального окна
+            document.querySelector('#modal button').onclick = closeModal;
         }
         
         function getTodayDateString() {
@@ -51,16 +92,14 @@
         }
 
         function getMoodColor(mood) {
-            // Округляем до ближайшего целого для получения цвета, если mood - среднее значение
             const roundedMood = Math.round(mood);
             return MOOD_COLORS[Math.min(5, Math.max(1, roundedMood))]?.bg || '#E0E0E0';
         }
 
         function getStressColor(stress) {
-            // Градиент от 1 (зеленый) до 10 (красный)
-            if (stress <= 3) return MOOD_COLORS[4].bg; // Greenish
-            if (stress <= 7) return MOOD_COLORS[3].bg; // Yellowish
-            return MOOD_COLORS[1].bg; // Reddish
+            if (stress <= 3) return MOOD_COLORS[4].bg; 
+            if (stress <= 7) return MOOD_COLORS[3].bg; 
+            return MOOD_COLORS[1].bg;
         }
 
         // --- Логика Данных и Local Storage ---
@@ -69,7 +108,12 @@
             const dailyData = {};
             
             logs.forEach(log => {
-                // Преобразуем id в число, чтобы убедиться, что id сработает для сортировки
+                // Ensure log has a date and required fields
+                if (!log.date || typeof log.mood !== 'number' || typeof log.stress !== 'number' || typeof log.energy !== 'number') {
+                    console.warn("Пропущена некорректная запись:", log);
+                    return;
+                }
+                
                 log.id = log.id || log.timestamp || Date.parse(log.date); 
 
                 if (!dailyData[log.date]) {
@@ -78,7 +122,7 @@
                         totalStress: 0, 
                         totalEnergy: 0, 
                         count: 0, 
-                        latestLog: log // Храним самую свежую запись по умолчанию
+                        latestLog: log
                     };
                 }
                 dailyData[log.date].totalMood += log.mood;
@@ -86,7 +130,6 @@
                 dailyData[log.date].totalEnergy += log.energy;
                 dailyData[log.date].count++;
                 
-                // Обновляем "самую свежую" запись, используя ID как timestamp
                 if (log.id > dailyData[log.date].latestLog.id) {
                     dailyData[log.date].latestLog = log;
                 }
@@ -110,7 +153,8 @@
             try {
                 const data = localStorage.getItem(STORAGE_KEY);
                 if (data) {
-                    window.dailyLogs = JSON.parse(data);
+                    // Парсинг данных и фильтрация некорректных записей
+                    window.dailyLogs = JSON.parse(data).filter(log => log && log.date && typeof log.mood === 'number');
                 } else {
                     window.dailyLogs = [];
                 }
@@ -118,16 +162,14 @@
                 console.error("Ошибка загрузки данных из Local Storage:", error);
                 window.dailyLogs = [];
             }
-            // Пересчитываем средние значения
             dailyAverages = calculateDailyAverages(window.dailyLogs);
             updateUI();
-            loadDataForDate(); // Обновляем форму после загрузки
+            loadDataForDate(); 
         }
 
         function saveDailyLogsToLocal() {
             try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(window.dailyLogs));
-                // Пересчитываем средние значения после сохранения
                 dailyAverages = calculateDailyAverages(window.dailyLogs);
                 updateUI();
             } catch (error) {
@@ -159,7 +201,6 @@
         function loadDataForDate() {
             const date = document.getElementById('date-input').value;
             
-            // Получаем средние данные и последнюю запись для этой даты
             const dailyData = dailyAverages[date];
             const log = dailyData ? dailyData.latestLog : null;
             
@@ -173,14 +214,14 @@
             entryCountSpan.textContent = count;
             
             if (count > 0) {
-                // Если есть записи, подгружаем последнюю и активируем кнопку удаления
+                // Если данные есть, загружаем последнюю запись
                 updateMoodSelection(log.mood);
                 stressSlider.value = log.stress;
                 energySlider.value = log.energy;
                 noteInput.value = log.note || '';
                 deleteButton.classList.remove('hidden');
             } else {
-                // Сбрасываем к значениям по умолчанию, если записей нет
+                // Если данных нет, устанавливаем значения по умолчанию
                 updateMoodSelection(3);
                 stressSlider.value = 5;
                 energySlider.value = 5;
@@ -192,6 +233,7 @@
 
         window.handleSave = async () => {
             const date = document.getElementById('date-input').value;
+            // Проверяем, что дата выбрана и настроение оценено
             if (!date || !currentMood) {
                 showModal("Ошибка ввода", "Пожалуйста, выберите дату и оценку дня.");
                 return;
@@ -203,20 +245,19 @@
                 stress: parseInt(document.getElementById('stress-slider').value),
                 energy: parseInt(document.getElementById('energy-slider').value),
                 note: document.getElementById('note-input').value.trim(),
-                id: Date.now() // Уникальный идентификатор
+                id: Date.now() // Уникальный ID для каждой записи
             };
             
-            // Добавляем новую запись в массив
             window.dailyLogs.push(dataToSave);
             saveDailyLogsToLocal();
 
-            // Очищаем форму, чтобы новая запись была чистой (кроме даты)
+            // Сброс полей после сохранения
             document.getElementById('note-input').value = '';
+            // Оставляем дату текущей
             updateMoodSelection(3);
             document.getElementById('stress-slider').value = 5;
             document.getElementById('energy-slider').value = 5;
             updateSliderValues();
-            loadDataForDate(); // Обновление счетчика записей
         }
 
         window.handleDelete = () => {
@@ -230,20 +271,16 @@
                 
                 const initialLength = window.dailyLogs.length;
                 
-                // Фильтруем все записи, кроме тех, что соответствуют дате
                 window.dailyLogs = window.dailyLogs.filter(log => log.date !== dateToDelete);
                 
                 if (window.dailyLogs.length < initialLength) {
                     saveDailyLogsToLocal();
-                    // Сбрасываем форму после удаления
-                    loadDataForDate(); 
+                    // После удаления, сбрасываем поля формы
+                    document.getElementById('date-input').dispatchEvent(new Event('change'));
                     showModal("Успех", `Все записи за ${dateToDelete} удалены.`);
                 } else {
                     showModal("Ошибка", "Записей для удаления не найдено.");
                 }
-
-                // Восстанавливаем стандартное поведение кнопки OK
-                document.querySelector('#modal button').onclick = closeModal;
             };
         }
 
@@ -261,8 +298,13 @@
 
             document.getElementById('stress-slider').addEventListener('input', updateSliderValues);
             document.getElementById('energy-slider').addEventListener('input', updateSliderValues);
+            document.getElementById('date-input').addEventListener('change', loadDataForDate);
             
-            dateInput.addEventListener('change', loadDataForDate);
+            document.getElementById('theme-selector').addEventListener('change', (e) => {
+                applyTheme(e.target.value);
+                // Обновляем UI, чтобы графики и календарь обновили цвета
+                updateUI();
+            });
         }
 
         // --- Навигация и Обновление UI ---
@@ -281,12 +323,12 @@
             if (viewId === 'calendar') {
                 renderCalendar();
             } else if (viewId === 'charts') {
+                // Гарантируем, что графики будут обновлены при переключении
                 updateCharts();
             }
         }
 
         function updateUI() {
-            // Обновляем текущую вкладку (Календарь или Графики)
             const activeTabElement = document.querySelector('.tab-button.active');
             const activeTab = activeTabElement ? activeTabElement.dataset.view : 'input';
             
@@ -295,7 +337,7 @@
             } else if (activeTab === 'charts') {
                 updateCharts();
             }
-            loadDataForDate(); // Обновляем форму, если изменились данные
+            loadDataForDate();
         }
 
         // --- Логика Календаря ---
@@ -309,18 +351,19 @@
             const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
             const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0);
             
+            // 0=Вс, 1=Пн, ... 6=Сб. 
+            // Преобразуем 0 (Вс) в 7, чтобы отсчет шел с Пн (1).
             let startDay = firstDayOfMonth.getDay(); 
-            if (startDay === 0) startDay = 7;
-            const leadingBlanks = startDay - 1;
+            if (startDay === 0) startDay = 7; 
+            
+            const leadingBlanks = startDay - 1; // Количество пустых ячеек перед первым днем месяца
 
-            // Добавляем пустые ячейки
             for (let i = 0; i < leadingBlanks; i++) {
                 const blankCell = document.createElement('div');
                 blankCell.className = 'day-cell';
                 calendarDaysContainer.appendChild(blankCell);
             }
 
-            // Добавляем дни месяца
             for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
                 const date = new Date(currentYear, currentMonth, day);
                 const dateString = date.toISOString().split('T')[0];
@@ -334,11 +377,10 @@
                     const moodColor = getMoodColor(dailyData.mood);
                     dayCell.style.backgroundColor = moodColor;
                     dayCell.classList.add('shadow-inner', 'font-bold', 'text-gray-800');
-                    // Клик для быстрого перехода к записи
                     dayCell.onclick = () => {
                         document.getElementById('date-input').value = dateString;
                         switchView('input');
-                        loadDataForDate(); // Загрузит данные для новой даты
+                        loadDataForDate();
                     };
                     dayCell.setAttribute('title', `Ср. Настроение: ${dailyData.mood.toFixed(1)} (${dailyData.count} зап.)\nСр. Стресс: ${dailyData.stress.toFixed(1)}`);
                 } else {
@@ -361,38 +403,72 @@
         }
 
         // --- Логика Графиков (Chart.js) ---
+        
+        window.changeChartPeriod = (offset) => {
+            if (currentChartPeriod === 'week') {
+                currentChartDate.setDate(currentChartDate.getDate() + offset * 7);
+            } else { // month
+                currentChartDate.setMonth(currentChartDate.getMonth() + offset);
+            }
+            // Устанавливаем дату без времени, чтобы избежать ошибок DST
+            currentChartDate = new Date(currentChartDate.toISOString().split('T')[0]);
+            updateCharts();
+        }
 
         function filterLogsByPeriod(period) {
-            const today = new Date(getTodayDateString());
+            // Используем копию currentChartDate, чтобы не менять глобальное состояние, 
+            // и нормализуем ее для чистых сравнений.
+            const dateOfInterest = new Date(currentChartDate);
+            dateOfInterest.setHours(12, 0, 0, 0); 
+            
             let startDate;
+            let displayEndDate; 
+            let rangeLabel;
 
             if (period === 'week') {
-                // Неделя начинается с понедельника
-                let dayOfWeek = today.getDay(); 
+                // 1. Находим Понедельник (начало недели)
+                let dayOfWeek = dateOfInterest.getDay(); // 0=Вс, 1=Пн, ... 6=Сб
+                // Если Вс (0), считаем 7-м днем, чтобы сместиться на 6 дней назад
                 if (dayOfWeek === 0) dayOfWeek = 7; 
-                const diff = dayOfWeek - 1; 
+                const diff = dayOfWeek - 1; // Количество дней, которые нужно отнять, чтобы попасть на Пн
                 
-                startDate = new Date(today);
-                startDate.setDate(today.getDate() - diff);
+                startDate = new Date(dateOfInterest);
+                startDate.setDate(dateOfInterest.getDate() - diff);
+                startDate.setHours(0, 0, 0, 0);
+
+                // 2. Находим Воскресенье (конец недели)
+                displayEndDate = new Date(startDate);
+                displayEndDate.setDate(startDate.getDate() + 6);
+                displayEndDate.setHours(23, 59, 59, 999); 
+                
+                rangeLabel = `${startDate.toLocaleDateString('ru-RU')} - ${displayEndDate.toLocaleDateString('ru-RU')}`;
             } else { // month
-                startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                startDate = new Date(dateOfInterest.getFullYear(), dateOfInterest.getMonth(), 1);
+                startDate.setHours(0, 0, 0, 0);
+
+                displayEndDate = new Date(dateOfInterest.getFullYear(), dateOfInterest.getMonth() + 1, 0);
+                displayEndDate.setHours(23, 59, 59, 999); 
+
+                rangeLabel = dateOfInterest.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
             }
             
-            const endDate = new Date(today);
-            endDate.setHours(23, 59, 59, 999);
-            
+            document.getElementById('chart-range-label').textContent = rangeLabel;
+
             const dates = [];
             let cursor = new Date(startDate);
-            while (cursor <= endDate) {
+            
+            // Цикл всегда идет от startDate (Пн/1-е число) до displayEndDate (Вс/последнее число).
+            while (cursor.toISOString().split('T')[0] <= displayEndDate.toISOString().split('T')[0]) {
                 dates.push(cursor.toISOString().split('T')[0]);
                 cursor.setDate(cursor.getDate() + 1);
             }
             
-            // Сопоставляем средние данные с каждой датой
-            const periodData = dates.map(date => dailyAverages[date]);
+            // Получаем средние значения для каждой даты. Если данных нет, будет null.
+            const periodData = dates.map(date => dailyAverages[date] || null);
             
             const labels = dates.map(dateString => {
                 const date = new Date(dateString);
+                // Используем день недели для недельного графика, или день/месяц для месячного
                 return period === 'week' ? date.toLocaleDateString('ru-RU', { weekday: 'short' }) : date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'numeric' });
             });
             
@@ -406,19 +482,26 @@
         }
         
         function createStressGradient(ctx, chartArea) {
+            // Используем цвета из темы
+            const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--p-accent');
+            const redColor = getComputedStyle(document.documentElement).getPropertyValue('--p-red');
+            const yellowColor = getComputedStyle(document.documentElement).getPropertyValue('--p-yellow');
+
             return createGradient(ctx, chartArea, [
-                { offset: 0.0, color: MOOD_COLORS[4].bg }, // Low (Green)
-                { offset: 0.5, color: MOOD_COLORS[3].bg }, // Mid (Yellow)
-                { offset: 1.0, color: MOOD_COLORS[1].bg } // High (Red)
+                { offset: 0.0, color: accentColor }, // Низкий уровень (светлый акцент)
+                { offset: 0.5, color: yellowColor }, // Средний уровень
+                { offset: 1.0, color: redColor } // Высокий уровень
             ]);
         }
 
         function renderCharts(period) {
             const { labels, periodData } = filterLogsByPeriod(period);
-            // Извлекаем средние значения. Используем null для дней без записей.
             const moodData = periodData.map(data => data ? data.mood : null);
             const stressData = periodData.map(data => data ? data.stress : null);
-
+            
+            // Получаем актуальный основной цвет текста
+            const mainTextColor = getComputedStyle(document.documentElement).getPropertyValue('--p-text');
+            
             // 1. График Настроения (1-5)
             if (moodChartInstance) moodChartInstance.destroy();
             const moodCtx = document.getElementById('moodChart').getContext('2d');
@@ -429,12 +512,12 @@
                     datasets: [{
                         label: 'Среднее Настроение',
                         data: moodData,
-                        borderColor: 'var(--p-text)', 
+                        borderColor: mainTextColor, 
                         tension: 0.4, 
-                        // Цвет точки теперь зависит от среднего настроения
-                        pointBackgroundColor: periodData.map(data => data ? getMoodColor(data.mood) : MOOD_COLORS[3].border),
-                        pointRadius: 6,
-                        fill: false
+                        pointBackgroundColor: periodData.map(data => data ? getMoodColor(data.mood) : 'gray'), // Цвет точки зависит от настроения
+                        pointRadius: 6, // Увеличиваем радиус для видимости
+                        fill: false,
+                        spanGaps: true // Соединяет точки через пропущенные (null) значения
                     }]
                 },
                 options: {
@@ -463,18 +546,18 @@
                         label: 'Средний Стресс',
                         data: stressData,
                         tension: 0.4, 
-                        // Цвет точки зависит от среднего стресса
-                        pointBackgroundColor: periodData.map(data => data ? getStressColor(data.stress) : MOOD_COLORS[3].border),
-                        pointRadius: 6,
+                        pointBackgroundColor: periodData.map(data => data ? getStressColor(data.stress) : 'gray'),
+                        pointRadius: 6, // Увеличиваем радиус для видимости
                         fill: 'start', 
-                        borderColor: MOOD_COLORS[1].border, 
+                        borderColor: mainTextColor, 
                         backgroundColor: (context) => {
                             const chart = context.chart;
                             if (chart.chartArea) {
                                 return createStressGradient(context.chart.ctx, chart.chartArea);
                             }
-                            return MOOD_COLORS[1].bg;
+                            return 'rgba(255, 99, 132, 0.2)'; 
                         },
+                        spanGaps: true // Соединяет точки через пропущенные (null) значения
                     }]
                 },
                 options: {
@@ -500,17 +583,16 @@
         // --- Инициализация при загрузке DOM ---
 
         document.addEventListener('DOMContentLoaded', () => {
+            loadTheme(); // Загрузка и применение темы
             setupInputListeners();
-            loadDailyLogsFromLocal(); // Первая загрузка данных
+            loadDailyLogsFromLocal(); 
             
-            // Навигация
             document.getElementById('nav-tabs').addEventListener('click', (e) => {
                 if (e.target.dataset.view) {
                     switchView(e.target.dataset.view);
                 }
             });
 
-            // Переключатель периода графиков
             document.querySelectorAll('.chart-period-button').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     document.querySelectorAll('.chart-period-button').forEach(b => {
@@ -521,14 +603,14 @@
                     e.target.style.backgroundColor = 'var(--p-accent)';
 
                     currentChartPeriod = e.target.dataset.period;
+                    // Сбрасываем дату на "сегодня" при смене периода
+                    currentChartDate = new Date(getTodayDateString());
                     updateCharts();
                 });
             });
 
-            // Выбираем вкладку "Неделя" по умолчанию
+            // Инициализация графиков
             document.querySelector('.chart-period-button[data-period="week"]').click();
-            
-            // Инициализация первой вкладки
             switchView('input');
         });
 
@@ -538,7 +620,7 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         
         :root {
-            /* Pastel Palette */
+            /* Переменные темы (Значения по умолчанию - Лаванда) */
             --p-blue: #B3E5FC; 
             --p-green: #C8E6C9; 
             --p-yellow: #FFF9C4; 
@@ -566,7 +648,6 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
         }
 
-        /* Стиль для кружочков оценки */
         .rating-option {
             transition: all 0.15s;
             border: 2px solid var(--p-accent);
@@ -620,12 +701,14 @@
             opacity: 0.8;
             box-shadow: 0 0 0 2px var(--p-text);
         }
-
-        .bg-p-blue { background-color: var(--p-blue); }
-        .bg-p-green { background-color: var(--p-green); }
-        .bg-p-yellow { background-color: var(--p-yellow); }
-        .bg-p-orange { background-color: var(--p-orange); }
-        .bg-p-red { background-color: var(--p-red); }
+        
+        .nav-button {
+            color: var(--p-text);
+            transition: background-color 0.15s;
+        }
+        .nav-button:hover {
+            background-color: var(--p-accent);
+        }
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-8">
@@ -646,8 +729,17 @@
         <main class="p-4">
             <!-- 1. Вкладка "Ежедневная Запись" (Input) -->
             <div id="view-input" class="view-content space-y-6">
-                <div class="p-4 rounded-xl shadow-md" style="background-color: var(--p-accent); color: white;">
-                    <label for="date-input" class="block text-sm font-medium mb-2 text-white">Дата:</label>
+                
+                <!-- Селектор Темы и Дата -->
+                <div class="p-4 rounded-xl shadow-md space-y-3" style="background-color: var(--p-accent); color: white;">
+                    <label for="theme-selector" class="block text-sm font-medium text-white">Тема оформления:</label>
+                    <select id="theme-selector" class="w-full p-2 rounded-lg text-gray-800 focus:ring-2 focus:ring-white" style="border: 1px solid var(--p-accent);">
+                        <option value="Lavender">Лаванда (Фиолетовый)</option>
+                        <option value="Mint">Мятный (Бирюзовый)</option>
+                        <option value="Peach">Персиковый (Оранжевый)</option>
+                    </select>
+
+                    <label for="date-input" class="block text-sm font-medium text-white">Дата:</label>
                     <input type="date" id="date-input" class="w-full p-2 rounded-lg text-gray-800 focus:ring-2 focus:ring-white" style="border: 1px solid var(--p-accent);" />
                 </div>
                 
@@ -659,26 +751,12 @@
                 <section class="bg-gray-50 p-4 rounded-xl shadow-md">
                     <h2 class="text-lg font-semibold mb-3" style="color: var(--p-text);">Оценка дня (Настроение)</h2>
                     <div class="flex justify-between items-center text-center">
-                        <div class="flex flex-col items-center">
-                            <button data-mood="1" class="rating-option w-10 h-10 flex items-center justify-center rounded-full text-lg hover:bg-p-red bg-p-red/50">1</button>
-                            <span class="text-xs mt-1 text-gray-500">Плохо</span>
-                        </div>
-                        <div class="flex flex-col items-center">
-                            <button data-mood="2" class="rating-option w-10 h-10 flex items-center justify-center rounded-full text-lg hover:bg-p-orange bg-p-orange/50">2</button>
-                            <span class="text-xs mt-1 text-gray-500">Не очень</span>
-                        </div>
-                        <div class="flex flex-col items-center">
-                            <button data-mood="3" class="rating-option w-10 h-10 flex items-center justify-center rounded-full text-lg hover:bg-p-yellow bg-p-yellow/50">3</button>
-                            <span class="text-xs mt-1 text-gray-500">Норм</span>
-                        </div>
-                        <div class="flex flex-col items-center">
-                            <button data-mood="4" class="rating-option w-10 h-10 flex items-center justify-center rounded-full text-lg hover:bg-p-green bg-p-green/50">4</button>
-                            <span class="text-xs mt-1 text-gray-500">Хорошо</span>
-                        </div>
-                        <div class="flex flex-col items-center">
-                            <button data-mood="5" class="rating-option w-10 h-10 flex items-center justify-center rounded-full text-lg hover:bg-p-blue bg-p-blue/50">5</button>
-                            <span class="text-xs mt-1 text-gray-500">Отлично</span>
-                        </div>
+                        <!-- Опции настроения (цвета стилизуются через JS/CSS) -->
+                        <div class="flex flex-col items-center"><button data-mood="1" class="rating-option w-10 h-10 flex items-center justify-center rounded-full text-lg bg-red-100">1</button><span class="text-xs mt-1 text-gray-500">Плохо</span></div>
+                        <div class="flex flex-col items-center"><button data-mood="2" class="rating-option w-10 h-10 flex items-center justify-center rounded-full text-lg bg-orange-100">2</button><span class="text-xs mt-1 text-gray-500">Не очень</span></div>
+                        <div class="flex flex-col items-center"><button data-mood="3" class="rating-option w-10 h-10 flex items-center justify-center rounded-full text-lg bg-yellow-100">3</button><span class="text-xs mt-1 text-gray-500">Норм</span></div>
+                        <div class="flex flex-col items-center"><button data-mood="4" class="rating-option w-10 h-10 flex items-center justify-center rounded-full text-lg bg-green-100">4</button><span class="text-xs mt-1 text-gray-500">Хорошо</span></div>
+                        <div class="flex flex-col items-center"><button data-mood="5" class="rating-option w-10 h-10 flex items-center justify-center rounded-full text-lg bg-blue-100">5</button><span class="text-xs mt-1 text-gray-500">Отлично</span></div>
                     </div>
                 </section>
 
@@ -711,12 +789,14 @@
                     <textarea id="note-input" rows="4" class="w-full p-3 rounded-lg border-2 border-gray-200 focus:border-purple-300 focus:ring-0" placeholder="Что произошло сегодня?"></textarea>
                 </section>
 
-                <div class="flex space-x-4">
-                    <button id="delete-button" onclick="handleDelete()" class="hidden flex-1 py-3 text-sm font-bold rounded-xl text-white shadow-lg transform active:scale-95 transition duration-150 bg-red-400 hover:bg-red-500">
-                        Удалить записи за день
+                <div class="flex space-x-4 items-center">
+                    <!-- Кнопка "Удалить" (Корзина) -->
+                    <button id="delete-button" onclick="handleDelete()" class="hidden w-12 h-12 text-xl font-bold rounded-full text-white shadow-lg transform active:scale-95 transition duration-150 bg-red-500 hover:bg-red-600 flex items-center justify-center p-0" title="Очистить Записи Дня">
+                        🗑
                     </button>
+                    <!-- Кнопка "Сохранить" -->
                     <button id="save-button" onclick="handleSave()" class="flex-1 py-3 text-lg font-bold rounded-xl text-white shadow-lg transform active:scale-95 transition duration-150" style="background-color: var(--p-text);">
-                        Добавить Новую Запись
+                        Сохранить
                     </button>
                 </div>
             </div>
@@ -726,12 +806,13 @@
                 <h2 class="text-xl font-bold text-center" style="color: var(--p-text);">Календарь Настроения</h2>
                 
                 <div class="flex justify-center items-center space-x-4">
-                    <button onclick="changeMonth(-1)" class="p-2 rounded-full hover:bg-gray-200" style="color: var(--p-text);">&lt;</button>
+                    <button onclick="changeMonth(-1)" class="p-2 rounded-full nav-button">&lt;</button>
                     <span id="current-month-year" class="text-lg font-semibold" style="color: var(--p-text);"></span>
-                    <button onclick="changeMonth(1)" class="p-2 rounded-full hover:bg-gray-200" style="color: var(--p-text);">&gt;</button>
+                    <button onclick="changeMonth(1)" class="p-2 rounded-full nav-button">&gt;</button>
                 </div>
                 
                 <div class="calendar-grid p-3 rounded-xl shadow-md bg-white">
+                    <!-- Понедельник - Воскресенье -->
                     <div class="text-xs font-bold text-gray-500">Пн</div>
                     <div class="text-xs font-bold text-gray-500">Вт</div>
                     <div class="text-xs font-bold text-gray-500">Ср</div>
@@ -747,11 +828,11 @@
                 <div class="p-3 rounded-xl shadow-md bg-white">
                     <h3 class="font-semibold mb-2" style="color: var(--p-text);">Легенда Настроения (Ср.):</h3>
                     <div class="flex flex-wrap gap-2">
-                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1 bg-p-blue"></span> ~5 (Отлично)</span>
-                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1 bg-p-green"></span> ~4 (Хорошо)</span>
-                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1 bg-p-yellow"></span> ~3 (Норм)</span>
-                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1 bg-p-orange"></span> ~2 (Не очень)</span>
-                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1 bg-p-red"></span> ~1 (Плохо)</span>
+                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1" style="background-color: var(--p-blue);"></span> ~5 (Отлично)</span>
+                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1" style="background-color: var(--p-green);"></span> ~4 (Хорошо)</span>
+                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1" style="background-color: var(--p-yellow);"></span> ~3 (Норм)</span>
+                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1" style="background-color: var(--p-orange);"></span> ~2 (Не очень)</span>
+                        <span class="flex items-center text-sm"><span class="w-4 h-4 rounded-full mr-1" style="background-color: var(--p-red);"></span> ~1 (Плохо)</span>
                     </div>
                 </div>
             </div>
@@ -761,9 +842,16 @@
                 <h2 class="text-xl font-bold text-center" style="color: var(--p-text);">Аналитика</h2>
                 
                 <!-- Переключатель Неделя/Месяц -->
-                <div class="flex justify-center p-1 bg-gray-100 rounded-full shadow-inner">
+                <div class="flex justify-center p-1 bg-gray-100 rounded-full shadow-inner mb-4">
                     <button data-period="week" class="chart-period-button active flex-1 py-2 text-sm font-semibold rounded-full" style="color: var(--p-text); background-color: var(--p-accent);">Неделя</button>
                     <button data-period="month" class="chart-period-button flex-1 py-2 text-sm font-semibold rounded-full" style="color: var(--p-text);">Месяц</button>
+                </div>
+
+                <!-- Навигация по периоду -->
+                <div class="flex justify-center items-center space-x-4 mb-4">
+                    <button onclick="changeChartPeriod(-1)" class="p-2 rounded-full nav-button text-xl leading-none">&lt;</button>
+                    <span id="chart-range-label" class="text-md font-semibold text-center" style="color: var(--p-text);"></span>
+                    <button onclick="changeChartPeriod(1)" class="p-2 rounded-full nav-button text-xl leading-none">&gt;</button>
                 </div>
 
                 <!-- График Настроения -->
@@ -793,5 +881,4 @@
     </div>
 </body>
 </html>
-
 
