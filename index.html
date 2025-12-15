@@ -13,7 +13,7 @@
     <script>
         // --- Глобальные переменные UI и Данных ---
         window.dailyLogs = []; // Глобальный массив всех записей
-        let dailyAverages = {}; // Кэш для средних значений по датам
+        let dailyAverages = {}; // Кэш для средних значений по датам и всех записей
         const STORAGE_KEY = 'dailyMoodLogs';
         const THEME_STORAGE_KEY = 'moodDiaryTheme';
 
@@ -86,9 +86,19 @@
             // Восстанавливаем стандартное поведение кнопки OK после модального окна
             document.querySelector('#modal button').onclick = closeModal;
         }
+
+        function closeNotesModal() {
+            document.getElementById('notes-modal').classList.add('hidden');
+            document.getElementById('notes-modal').classList.remove('flex');
+        }
         
         function getTodayDateString() {
             return new Date().toISOString().split('T')[0];
+        }
+
+        function formatTimestampToTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
         }
 
         function getMoodColor(mood) {
@@ -114,7 +124,7 @@
                     return;
                 }
                 
-                log.id = log.id || log.timestamp || Date.parse(log.date); 
+                log.id = log.id || Date.now(); // Убедимся, что у записи есть ID/Timestamp
 
                 if (!dailyData[log.date]) {
                     dailyData[log.date] = { 
@@ -122,28 +132,29 @@
                         totalStress: 0, 
                         totalEnergy: 0, 
                         count: 0, 
-                        latestLog: log
+                        allLogs: [] // Массив для всех записей за день
                     };
                 }
                 dailyData[log.date].totalMood += log.mood;
                 dailyData[log.date].totalStress += log.stress;
                 dailyData[log.date].totalEnergy += log.energy;
                 dailyData[log.date].count++;
-                
-                if (log.id > dailyData[log.date].latestLog.id) {
-                    dailyData[log.date].latestLog = log;
-                }
+                dailyData[log.date].allLogs.push(log); // Сохраняем лог
             });
 
             const averages = {};
             for (const date in dailyData) {
                 const d = dailyData[date];
+                // Сортируем записи по ID/timestamp, чтобы самая свежая была первой
+                d.allLogs.sort((a, b) => b.id - a.id);
+
                 averages[date] = {
                     mood: d.totalMood / d.count,
                     stress: d.totalStress / d.count,
                     energy: d.totalEnergy / d.count,
                     count: d.count,
-                    latestLog: d.latestLog
+                    allLogs: d.allLogs, // Включаем все записи
+                    latestLog: d.allLogs[0] // Самая свежая запись
                 };
             }
             return averages;
@@ -198,10 +209,42 @@
             document.getElementById('energy-value').textContent = energySlider.value;
         }
 
+        function loadSpecificLog(logId, dateString) {
+            const dailyData = dailyAverages[dateString];
+            if (!dailyData) return;
+
+            // Находим конкретную запись по ID
+            const log = dailyData.allLogs.find(l => l.id === logId);
+
+            if (log) {
+                // 1. Закрываем модальное окно заметок
+                closeNotesModal();
+                // 2. Переключаемся на вкладку ввода
+                switchView('input'); 
+                
+                // 3. Загружаем данные в форму
+                document.getElementById('date-input').value = dateString;
+                updateMoodSelection(log.mood);
+                document.getElementById('stress-slider').value = log.stress;
+                document.getElementById('energy-slider').value = log.energy;
+                document.getElementById('note-input').value = log.note || '';
+
+                // 4. Обновляем счетчик
+                document.getElementById('entry-count').textContent = dailyData.count;
+
+                // 5. Обновляем значения ползунков
+                updateSliderValues();
+                
+                // Пользователь просматривает старую запись, новая запись будет создана на основе текущих значений формы
+                showModal("Загружена Запись", `Загружена запись от ${formatTimestampToTime(log.id)}. Сохранение создаст НОВУЮ запись на сегодня.`);
+            }
+        }
+
         function loadDataForDate() {
             const date = document.getElementById('date-input').value;
             
             const dailyData = dailyAverages[date];
+            // Используем latestLog, т.к. Input view предназначен для работы с последними данными
             const log = dailyData ? dailyData.latestLog : null;
             
             const stressSlider = document.getElementById('stress-slider');
@@ -245,7 +288,7 @@
                 stress: parseInt(document.getElementById('stress-slider').value),
                 energy: parseInt(document.getElementById('energy-slider').value),
                 note: document.getElementById('note-input').value.trim(),
-                id: Date.now() // Уникальный ID для каждой записи
+                id: Date.now() // Уникальный ID для каждой записи (Timestamp)
             };
             
             window.dailyLogs.push(dataToSave);
@@ -253,7 +296,6 @@
 
             // Сброс полей после сохранения
             document.getElementById('note-input').value = '';
-            // Оставляем дату текущей
             updateMoodSelection(3);
             document.getElementById('stress-slider').value = 5;
             document.getElementById('energy-slider').value = 5;
@@ -340,7 +382,52 @@
             loadDataForDate();
         }
 
-        // --- Логика Календаря ---
+        // --- Логика Календаря и Заметок ---
+
+        function showDailyNotesModal(dateString) {
+            const dailyData = dailyAverages[dateString];
+            if (!dailyData || dailyData.count === 0) return;
+
+            document.getElementById('notes-modal-date').textContent = new Date(dateString).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            const notesList = document.getElementById('daily-notes-list');
+            notesList.innerHTML = '';
+            
+            // Записи отсортированы с самой новой к самой старой
+            dailyData.allLogs.forEach(log => {
+                const time = formatTimestampToTime(log.id);
+                const moodLabel = MOOD_COLORS[log.mood]?.label || 'Неизвестно';
+                const stress = log.stress;
+                const energy = log.energy;
+                const notePreview = log.note ? log.note.substring(0, 100) + (log.note.length > 100 ? '...' : '') : 'Заметки нет.';
+                const moodColorBg = getMoodColor(log.mood);
+
+                const logElement = document.createElement('div');
+                logElement.className = 'p-3 rounded-lg shadow-md cursor-pointer transition hover:shadow-xl mb-3 border-l-4';
+                // Применяем полупрозрачный фон, чтобы цвет был заметен, но не слишком яркий
+                logElement.style.backgroundColor = moodColorBg.replace('rgb', 'rgba').replace(')', ', 0.3)'); 
+                logElement.style.borderColor = MOOD_COLORS[log.mood].border;
+
+                logElement.innerHTML = `
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="font-bold text-lg" style="color: var(--p-text);">${time}</span>
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full" style="background-color: ${moodColorBg}; color: black;">${moodLabel} (${log.mood}/5)</span>
+                    </div>
+                    <div class="text-sm text-gray-700 mb-2">
+                        Стресс: <span class="font-medium">${stress}/10</span> | 
+                        Энергия: <span class="font-medium">${energy}/10</span>
+                    </div>
+                    <p class="text-sm italic text-gray-800">${notePreview}</p>
+                `;
+                
+                // Передаем ID записи и дату для загрузки в форму
+                logElement.onclick = () => loadSpecificLog(log.id, dateString);
+
+                notesList.appendChild(logElement);
+            });
+
+            document.getElementById('notes-modal').classList.remove('hidden');
+            document.getElementById('notes-modal').classList.add('flex');
+        }
 
         function renderCalendar() {
             document.getElementById('current-month-year').textContent = new Date(currentYear, currentMonth).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
@@ -378,13 +465,24 @@
                     dayCell.style.backgroundColor = moodColor;
                     dayCell.classList.add('shadow-inner', 'font-bold', 'text-gray-800');
                     dayCell.onclick = () => {
+                        // Устанавливаем дату, чтобы Input View знал, с какой датой работать
                         document.getElementById('date-input').value = dateString;
-                        switchView('input');
-                        loadDataForDate();
+                        
+                        if (dailyData.count > 0) {
+                            showDailyNotesModal(dateString);
+                        } else {
+                            switchView('input');
+                            loadDataForDate(); 
+                        }
                     };
                     dayCell.setAttribute('title', `Ср. Настроение: ${dailyData.mood.toFixed(1)} (${dailyData.count} зап.)\nСр. Стресс: ${dailyData.stress.toFixed(1)}`);
                 } else {
                     dayCell.style.backgroundColor = 'var(--p-bg)';
+                    dayCell.onclick = () => {
+                        document.getElementById('date-input').value = dateString;
+                        switchView('input');
+                        loadDataForDate(); 
+                    };
                 }
                 calendarDaysContainer.appendChild(dayCell);
             }
@@ -709,6 +807,19 @@
         .nav-button:hover {
             background-color: var(--p-accent);
         }
+        
+        /* Стилизация модального окна заметок для прокрутки */
+        #daily-notes-list::-webkit-scrollbar {
+            width: 8px;
+        }
+        #daily-notes-list::-webkit-scrollbar-thumb {
+            background-color: var(--p-accent);
+            border-radius: 4px;
+        }
+        #daily-notes-list::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-8">
@@ -869,7 +980,7 @@
             </div>
         </main>
 
-        <!-- Модальное окно для сообщений -->
+        <!-- Модальное окно для сообщений (короткое) -->
         <div id="modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
             <div class="bg-white p-6 rounded-xl shadow-2xl max-w-xs w-full text-center" style="border: 2px solid var(--p-text);">
                 <h3 id="modal-title" class="text-xl font-bold mb-3" style="color: var(--p-text);"></h3>
@@ -877,9 +988,23 @@
                 <button onclick="closeModal()" class="w-full py-2 rounded-lg text-white font-semibold" style="background-color: var(--p-text);">OK</button>
             </div>
         </div>
+        
+        <!-- Модальное окно для заметок (большое, с прокруткой) -->
+        <div id="notes-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 hidden items-center justify-center z-50 p-4">
+            <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-lg w-full h-4/5 flex flex-col" style="border: 2px solid var(--p-text);">
+                <h3 class="text-xl font-bold mb-2 text-center" style="color: var(--p-text);">Все Записи за День</h3>
+                <p id="notes-modal-date" class="text-center mb-4 text-gray-600 font-medium"></p>
+                
+                <!-- Список записей -->
+                <div id="daily-notes-list" class="flex-grow overflow-y-auto pr-2">
+                    <!-- Записи будут сгенерированы JavaScript -->
+                </div>
+
+                <button onclick="closeNotesModal()" class="mt-4 py-2 rounded-lg text-white font-semibold" style="background-color: var(--p-text);">Закрыть</button>
+            </div>
+        </div>
 
     </div>
 </body>
 </html>
-
 
