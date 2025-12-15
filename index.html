@@ -35,6 +35,21 @@
         
         // --- Настройки Gemini API ---
         const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
+        
+        // --- Настройки AI ---
+        const AI_SETTINGS_KEYS = {
+            PERSONA: 'aiPersona',
+            TONE: 'aiTone',
+            LENGTH: 'aiLength'
+        };
+
+        const AI_DEFAULTS = {
+            [AI_SETTINGS_KEYS.PERSONA]: 'Coach',
+            [AI_SETTINGS_KEYS.TONE]: 'Empathetic',
+            [AI_SETTINGS_KEYS.LENGTH]: 'Medium'
+        };
+
+        let aiSettings = { ...AI_DEFAULTS }; 
 
 
         // --- Цветовая Палитра и Настройки ---
@@ -76,25 +91,42 @@
             applyTheme(savedTheme);
         }
         
-        // --- API Key Логика ---
+        // --- API Key & AI Settings Логика ---
 
         function loadUserApiKey() {
             userProvidedApiKey = localStorage.getItem(GEMINI_API_KEY_STORAGE_KEY) || "";
-            const input = document.getElementById('gemini-api-key-input');
-            if (input) {
-                input.value = userProvidedApiKey;
+        }
+        
+        function loadAiSettings() {
+            for (const key in AI_SETTINGS_KEYS) {
+                const storageKey = AI_SETTINGS_KEYS[key];
+                aiSettings[storageKey] = localStorage.getItem(storageKey) || AI_DEFAULTS[storageKey];
             }
         }
 
-        window.saveUserApiKey = () => {
+        function saveAiSettingsToStorage() {
+            for (const key in AI_SETTINGS_KEYS) {
+                const storageKey = AI_SETTINGS_KEYS[key];
+                const elementId = `ai-setting-${key.toLowerCase()}`;
+                const value = document.getElementById(elementId)?.value || AI_DEFAULTS[storageKey];
+                localStorage.setItem(storageKey, value);
+                aiSettings[storageKey] = value;
+            }
+        }
+
+        window.saveSettings = () => {
+            // 1. Сохраняем API Key
             const input = document.getElementById('gemini-api-key-input');
             userProvidedApiKey = input.value.trim();
             localStorage.setItem(GEMINI_API_KEY_STORAGE_KEY, userProvidedApiKey);
+
+            // 2. Сохраняем AI Settings
+            saveAiSettingsToStorage(); 
+
+            closeSettingsModal(); 
+            showTempSuccessMessage("Настройки сохранены!");
             
-            closeSettingsModal(); // Закрываем модал настроек перед показом сообщения об успехе
-            showTempSuccessMessage("API-ключ сохранен!");
-            
-            // Принудительно обновляем текст кнопки анализа
+            // Обновляем текст кнопки анализа
             const analyzeButton = document.getElementById('trigger-ai-analysis-button');
             if (analyzeButton) {
                 analyzeButton.textContent = 'Получить Анализ за Неделю';
@@ -103,7 +135,7 @@
         }
 
         window.showApiKeyHelp = () => {
-            closeSettingsModal(); // Закрываем модал настроек, чтобы модал справки был сверху
+            closeSettingsModal(); // Закрываем модал настроек перед показом справки
             
             const title = "Что такое Gemini API Key?";
             const message = `
@@ -116,8 +148,10 @@
                 </ol>
                 <p class="mt-2">Это обеспечит стабильную работу AI-анализа, даже если автоматическая инъекция ключа не сработает.</p>
             `;
+            
             // Используем основной модал для отображения справки
-            showModal(title, message, null, () => openSettingsModal()); // Добавляем колбэк для возврата в настройки
+            // Добавляем setTimeout для более чистого визуального перехода при возврате
+            showModal(title, message, null, () => setTimeout(openSettingsModal, 200)); 
         }
 
         // --- Вспомогательные функции ---
@@ -190,10 +224,16 @@
 
         function openSettingsModal() {
             // Убеждаемся, что текущий ключ отображается при открытии
-            const input = document.getElementById('gemini-api-key-input');
-            if (input) {
-                input.value = userProvidedApiKey;
+            const apiKeyInput = document.getElementById('gemini-api-key-input');
+            if (apiKeyInput) {
+                apiKeyInput.value = userProvidedApiKey;
             }
+            
+            // Загружаем AI настройки в инпуты
+            document.getElementById('ai-setting-persona').value = aiSettings[AI_SETTINGS_KEYS.PERSONA];
+            document.getElementById('ai-setting-tone').value = aiSettings[AI_SETTINGS_KEYS.TONE];
+            document.getElementById('ai-setting-length').value = aiSettings[AI_SETTINGS_KEYS.LENGTH];
+
             document.getElementById('settings-modal').classList.remove('hidden');
             document.getElementById('settings-modal').classList.add('flex');
         }
@@ -925,6 +965,26 @@
         }
         
         // --- Логика AI Анализа ---
+
+        // Mapping для генерации System Prompt
+        const personaMap = {
+            'Coach': 'эмпатичный и профессиональный ИИ-коуч по настроению и стрессу',
+            'Analyst': 'беспристрастный и логичный ИИ-аналитик, который фокусируется только на данных',
+            'Friend': 'заботливый и ободряющий друг, который поддерживает и дает мягкие советы'
+        };
+
+        const toneMap = {
+            'Empathetic': 'Используй эмпатичный, заботливый и теплый тон.',
+            'Professional': 'Используй профессиональный, четкий и объективный тон.',
+            'Optimistic': 'Используй ободряющий и оптимистичный тон, подчеркивая прогресс.',
+            'Calm': 'Используй спокойный, уравновешенный и расслабляющий тон.'
+        };
+
+        const lengthMap = {
+            'Short': 'Твой ответ должен быть максимально кратким и состоять из 2-3 небольших абзацев.',
+            'Medium': 'Твой ответ должен быть структурирован в виде 3-5 небольших абзацев.',
+            'Long': 'Твой ответ должен быть подробным и состоять из 5-7 небольших абзацев.'
+        };
         
         function getPromptDataForLastWeek() {
             const today = getTodayDateString();
@@ -1018,26 +1078,29 @@ ${detailedLogs}
             analyzeButton.disabled = true;
             analyzeButton.innerHTML = spinner;
 
+            // --- Генерация System Prompt с учетом настроек AI ---
+            const persona = aiSettings[AI_SETTINGS_KEYS.PERSONA];
+            const tone = aiSettings[AI_SETTINGS_KEYS.TONE];
+            const length = aiSettings[AI_SETTINGS_KEYS.LENGTH];
+            
             const systemPrompt = `
-                Ты — эмпатичный и профессиональный ИИ-коуч по настроению и стрессу. 
+                Ты — ${personaMap[persona] || personaMap['Coach']}. 
                 Твоя задача — проанализировать предоставленные данные дневника пользователя за последнюю неделю.
                 
-                1. Начни с краткого и теплого приветствия, используя дружелюбный, но профессиональный тон. 
+                1. Начни с приветствия, соответствующего выбранному стилю. ${toneMap[tone] || toneMap['Empathetic']}
                 2. Выдели и опиши основные тенденции: когда настроение было высоким/низким, когда стресс рос, а энергия падала. 
                 3. Если в записях есть заметки, свяжи их с числовыми показателями для контекстуального анализа. Если заметки отсутствуют, сосредоточься на численных показателях.
-                4. Заверши анализ спокойным и конструктивным советом или предложением для поддержки. Цель — помочь пользователю мягко разобраться в своих паттернах и улучшить самочувствие.
-                5. Используй только русский язык. Твой ответ должен быть структурирован в виде 3-5 небольших абзацев. Не используй списки, подзаголовки или форматирование Markdown (например, жирный текст), только абзацы.
+                4. Заверши анализ конструктивным советом или предложением для поддержки, соответствующим твоему тону.
+                5. Используй только русский язык. ${lengthMap[length] || lengthMap['Medium']} Не используй списки, подзаголовки или форматирование Markdown (например, жирный текст), только абзацы.
             `;
-            
-            // *** ИСПРАВЛЕНИЕ ОШИБКИ: Объявление объекта payload ***
+            // ---------------------------------------------------
+
             const payload = {
                 contents: [{ parts: [{ text: userPrompt }] }],
                 systemInstruction: {
                     parts: [{ text: systemPrompt }]
                 },
             };
-            // *******************************************************
-
 
             const apiKeyToUse = userProvidedApiKey; 
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKeyToUse}`;
@@ -1066,7 +1129,7 @@ ${detailedLogs}
                             lastError = 'Не удалось получить анализ от ИИ (пустой ответ).';
                         }
                     } else {
-                        // Повторная попытка при HTTP ошибке (например, 429 Too Many Requests, или 500)
+                        // Повторная попытка при HTTP ошибке 
                         lastError = `HTTP error! status: ${response.status} - ${response.statusText}`;
                     }
 
@@ -1092,6 +1155,7 @@ ${detailedLogs}
 
         document.addEventListener('DOMContentLoaded', () => {
             loadUserApiKey(); // Загружаем API key
+            loadAiSettings(); // Загружаем AI настройки
             loadTheme();
             setupInputListeners();
             loadDailyLogsFromLocal(); 
@@ -1125,12 +1189,12 @@ ${detailedLogs}
             document.querySelector('.chart-period-button[data-period="week"]').click();
             switchView('input');
             
-            const selector = document.getElementById('theme-selector');
+            const themeSelector = document.getElementById('theme-selector');
             for (const themeName in THEMES) {
                 const option = document.createElement('option');
                 option.value = themeName;
                 option.textContent = themeName;
-                selector.appendChild(option);
+                themeSelector.appendChild(option);
             }
             loadTheme(); 
         });
@@ -1436,8 +1500,16 @@ ${detailedLogs}
 
         <!-- Модальное окно Настроек (Обновлено) - Z-index z-50 -->
         <div id="settings-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50 p-4">
-            <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-sm w-full dynamic-border" style="border-width: 2px;">
+            <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-sm w-full h-auto max-h-[90vh] overflow-y-auto dynamic-border" style="border-width: 2px;">
                 <h3 class="text-xl font-bold mb-4 text-center dynamic-text">Настройки</h3>
+                
+                <!-- Общие настройки -->
+                <div class="mb-6 border-b pb-4 border-gray-200">
+                    <label for="theme-selector" class="block text-sm font-medium mb-2 dynamic-text">Базовая тема оформления:</label>
+                    <select id="theme-selector" class="w-full p-2 rounded-lg text-gray-800 border-2 dynamic-border focus:ring-2 focus:ring-white">
+                        <!-- Опции будут заполнены JS -->
+                    </select>
+                </div>
                 
                 <!-- Секция API Key -->
                 <div class="mb-6 border-b pb-4 border-gray-200">
@@ -1446,12 +1518,45 @@ ${detailedLogs}
                     <button onclick="showApiKeyHelp()" class="text-sm mt-1 text-blue-500 hover:underline">Что это?</button>
                 </div>
                 
-                <label for="theme-selector" class="block text-sm font-medium mb-2 dynamic-text">Базовая тема оформления:</label>
-                <select id="theme-selector" class="w-full p-2 rounded-lg text-gray-800 border-2 dynamic-border focus:ring-2 focus:ring-white">
-                    <!-- Опции будут заполнены JS -->
-                </select>
+                <!-- Секция Настроек AI (НОВЫЙ РАЗДЕЛ) -->
+                <div class="mb-6 pb-2">
+                    <h4 class="text-lg font-bold mb-3 dynamic-text">Настройки AI-Анализа</h4>
+                    
+                    <div class="space-y-4">
+                        <!-- Персона/Роль -->
+                        <div>
+                            <label for="ai-setting-persona" class="block text-sm font-medium mb-1 text-gray-700">Роль/Персона AI:</label>
+                            <select id="ai-setting-persona" class="w-full p-2 rounded-lg border-2 dynamic-border">
+                                <option value="Coach">Коуч (Нейтральный, Профессиональный)</option>
+                                <option value="Analyst">Аналитик (Объективный, Фактический)</option>
+                                <option value="Friend">Друг (Заботливый, Ободряющий)</option>
+                            </select>
+                        </div>
 
-                <button id="save-settings-button" onclick="saveUserApiKey()" class="mt-6 w-full py-2 rounded-lg text-white font-semibold dynamic-bg">Сохранить и Закрыть</button>
+                        <!-- Интонация/Тон -->
+                        <div>
+                            <label for="ai-setting-tone" class="block text-sm font-medium mb-1 text-gray-700">Интонация/Тон:</label>
+                            <select id="ai-setting-tone" class="w-full p-2 rounded-lg border-2 dynamic-border">
+                                <option value="Empathetic">Эмпатичный (Теплый)</option>
+                                <option value="Professional">Профессиональный (Четкий)</option>
+                                <option value="Optimistic">Оптимистичный (Бодрящий)</option>
+                                <option value="Calm">Спокойный (Уравновешенный)</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Длина Анализа -->
+                        <div>
+                            <label for="ai-setting-length" class="block text-sm font-medium mb-1 text-gray-700">Длина Анализа:</label>
+                            <select id="ai-setting-length" class="w-full p-2 rounded-lg border-2 dynamic-border">
+                                <option value="Short">Короткий (2-3 абзаца)</option>
+                                <option value="Medium">Средний (3-5 абзацев)</option>
+                                <option value="Long">Подробный (5-7 абзацев)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="save-settings-button" onclick="saveSettings()" class="mt-6 w-full py-2 rounded-lg text-white font-semibold dynamic-bg">Сохранить Настройки</button>
             </div>
         </div>
         
