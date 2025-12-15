@@ -18,6 +18,9 @@
         let dailyAverages = {};
         const STORAGE_KEY = 'dailyMoodLogs';
         const THEME_STORAGE_KEY = 'moodDiaryTheme';
+        const GEMINI_API_KEY_STORAGE_KEY = 'userGeminiApiKey'; // Ключ для хранения API Key
+        
+        let userProvidedApiKey = ""; // Глобальная переменная для пользовательского API Key
 
         let currentMood = 3; 
         let currentMonth = new Date().getMonth(); 
@@ -27,8 +30,8 @@
         
         let moodChartInstance = null;
         let stressChartInstance = null;
-        let synth = null; // Для звука
-        let loadedLogForAction = null; // Хранит лог, выбранный для действия (просмотр/удаление)
+        let synth = null; 
+        let loadedLogForAction = null; 
         
         // --- Настройки Gemini API ---
         const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
@@ -36,11 +39,11 @@
 
         // --- Цветовая Палитра и Настройки ---
         const MOOD_COLORS = {
-            5: { bg: '#B3E5FC', border: '#03A9F4', label: 'Отлично' }, // Синий
-            4: { bg: '#C8E6C9', border: '#4CAF50', label: 'Хорошо' },  // Зеленый
-            3: { bg: '#FFF9C4', border: '#FFEB3B', label: 'Норм' },    // Желтый
-            2: { bg: '#FFCCBC', border: '#FF5722', label: 'Не очень' },// Оранжевый
-            1: { bg: '#FFCDD2', border: '#F44336', label: 'Плохо' },   // Красный
+            5: { bg: '#B3E5FC', border: '#03A9F4', label: 'Отлично' }, 
+            4: { bg: '#C8E6C9', border: '#4CAF50', label: 'Хорошо' },  
+            3: { bg: '#FFF9C4', border: '#FFEB3B', label: 'Норм' },    
+            2: { bg: '#FFCCBC', border: '#FF5722', label: 'Не очень' },
+            1: { bg: '#FFCDD2', border: '#F44336', label: 'Плохо' },   
         };
         
         // РАСШИРЕННЫЙ СПИСОК СТАТИЧНЫХ ТЕМ
@@ -57,17 +60,14 @@
             const theme = THEMES[themeName] || THEMES['Lavender'];
             const root = document.documentElement;
             
-            // Установка статических переменных темы
             for (const key in theme) {
                 root.style.setProperty(key, theme[key]);
             }
             
             localStorage.setItem(THEME_STORAGE_KEY, themeName);
-            // Обновляем UI селектора
             const selector = document.getElementById('theme-selector');
             if (selector) selector.value = themeName;
             
-            // Перерисовка графиков и календаря, так как цвет акцента изменился
             updateUI(); 
         }
 
@@ -76,14 +76,52 @@
             applyTheme(savedTheme);
         }
         
+        // --- API Key Логика ---
+
+        function loadUserApiKey() {
+            userProvidedApiKey = localStorage.getItem(GEMINI_API_KEY_STORAGE_KEY) || "";
+            const input = document.getElementById('gemini-api-key-input');
+            if (input) {
+                input.value = userProvidedApiKey;
+            }
+        }
+
+        window.saveUserApiKey = () => {
+            const input = document.getElementById('gemini-api-key-input');
+            userProvidedApiKey = input.value.trim();
+            localStorage.setItem(GEMINI_API_KEY_STORAGE_KEY, userProvidedApiKey);
+            closeSettingsModal();
+            showTempSuccessMessage("API-ключ сохранен!");
+            // Принудительно обновляем текст кнопки анализа
+            const analyzeButton = document.getElementById('trigger-ai-analysis-button');
+            if (analyzeButton) {
+                analyzeButton.textContent = 'Получить Анализ за Неделю';
+                analyzeButton.disabled = false;
+            }
+        }
+
+        window.showApiKeyHelp = () => {
+            const title = "Что такое Gemini API Key?";
+            const message = `
+                <p>Для работы функции AI-анализа вашему приложению требуется доступ к сервисам Google Gemini. В стандартной среде (предпросмотр) ключ предоставляется автоматически, но на выставленном сайте это может не сработать.</p>
+                <p class="mt-2 font-semibold">Вам нужно:</p>
+                <ol class="list-decimal list-inside text-left ml-4 space-y-1">
+                    <li>Перейти на <a href="https://makersuite.google.com/app/apikey" target="_blank" class="text-blue-500 hover:underline font-normal">Google AI Studio</a>.</li>
+                    <li>Создать новый API-ключ.</li>
+                    <li>Вставить этот ключ в поле выше и нажать "Сохранить".</li>
+                </ol>
+                <p class="mt-2">Это обеспечит стабильную работу AI-анализа, даже если автоматическая инъекция ключа не сработает.</p>
+            `;
+            // Используем основной модал для отображения справки
+            showModal(title, message);
+        }
+
         // --- Вспомогательные функции ---
         
         /**
          * @description Создает строку даты ISO (YYYY-MM-DD), безопасно устанавливая время в полдень (12:00 PM) 
-         * локального времени, чтобы избежать сдвигов из-за временных зон при работе с датами.
          */
         function createSafeDateString(year, month, day) {
-            // Создает объект Date в 12:00 PM местного времени
             const date = new Date(year, month, day, 12, 0, 0, 0); 
             return date.toISOString().split('T')[0];
         }
@@ -92,18 +130,14 @@
         function playSuccessSound() {
             try {
                 if (!synth) {
-                    // Инициализация простого синтезатора
                     synth = new Tone.MembraneSynth().toDestination();
                 }
-                // Играем короткую, тихую ноту
                 synth.triggerAttackRelease("C6", "16n", Tone.now(), 0.3); 
             } catch (e) {
                 console.error("Tone.js error:", e);
-                // Игнорируем ошибку, если пользователь не активировал аудио контекст
             }
         }
 
-        // Модифицированная showModal для принятия кастомного HTML для кнопок
         function showModal(title, message, customContent = null) {
             document.getElementById('modal-title').textContent = title;
             document.getElementById('modal-message').innerHTML = message;
@@ -118,7 +152,6 @@
             } else {
                 defaultButtonContainer.classList.remove('hidden');
                 customButtonContainer.classList.add('hidden');
-                // Убеждаемся, что стандартная кнопка закрытия работает
                 document.querySelector('#modal-default-button').onclick = closeModal;
             }
 
@@ -126,7 +159,6 @@
             document.getElementById('modal').classList.add('flex');
         }
 
-        // Краткое сообщение о сохранении
         function showTempSuccessMessage(message) {
             const successBox = document.getElementById('save-success-message');
             successBox.textContent = message;
@@ -136,7 +168,6 @@
             setTimeout(() => {
                 successBox.classList.remove('opacity-100');
                 successBox.classList.add('opacity-0');
-                // Скрываем после перехода, чтобы не мешало
                 setTimeout(() => successBox.classList.add('hidden'), 500); 
             }, 3000);
         }
@@ -144,10 +175,15 @@
         function closeModal() {
             document.getElementById('modal').classList.add('hidden');
             document.getElementById('modal').classList.remove('flex');
-            loadedLogForAction = null; // Сброс контекста после закрытия
+            loadedLogForAction = null; 
         }
 
         function openSettingsModal() {
+            // Убеждаемся, что текущий ключ отображается при открытии
+            const input = document.getElementById('gemini-api-key-input');
+            if (input) {
+                input.value = userProvidedApiKey;
+            }
             document.getElementById('settings-modal').classList.remove('hidden');
             document.getElementById('settings-modal').classList.add('flex');
         }
@@ -220,7 +256,6 @@
                 dailyData[log.date].count++;
                 dailyData[log.date].allLogs.push(log);
 
-                // Устанавливаем флаг, если хоть в одной записи есть текст
                 if (log.note && log.note.trim().length > 0) {
                     dailyData[log.date].hasNote = true;
                 }
@@ -229,7 +264,7 @@
             const averages = {};
             for (const date in dailyData) {
                 const d = dailyData[date];
-                d.allLogs.sort((a, b) => b.id - a.id); // Сортируем от нового к старому
+                d.allLogs.sort((a, b) => b.id - a.id); 
 
                 averages[date] = {
                     mood: d.totalMood / d.count,
@@ -283,7 +318,6 @@
                 return;
             }
 
-            // Кастомные кнопки для подтверждения
             const customButtons = `
                 <div class="flex space-x-3">
                     <button id="confirm-delete-all" class="flex-1 py-2 rounded-lg text-white font-semibold bg-red-500 hover:bg-red-600">Подтвердить удаление (${count})</button>
@@ -303,7 +337,7 @@
                     saveDailyLogsToLocal();
                     document.getElementById('date-input').dispatchEvent(new Event('change'));
                     showTempSuccessMessage(`Все записи за ${dateToDelete} удалены.`);
-                    switchView('input'); // Переключаемся обратно на ввод
+                    switchView('input'); 
                 } else {
                     showModal("Ошибка", "Записей для удаления не найдено.");
                 }
@@ -311,7 +345,7 @@
         }
         
         window.deleteSpecificLog = (logId, dateString) => {
-            closeModal(); // Закрываем модальное окно действия
+            closeModal(); 
             
             const initialLength = window.dailyLogs.length;
             window.dailyLogs = window.dailyLogs.filter(log => log.id !== logId); 
@@ -320,15 +354,12 @@
                 saveDailyLogsToLocal();
                 showTempSuccessMessage(`Запись от ${formatTimestampToTime(logId)} удалена.`);
                 
-                // Обновляем календарь и список заметок
                 renderCalendar();
                 
                 const remainingLogs = dailyAverages[dateString]?.count || 0;
                 if (remainingLogs > 0) {
-                    // Если записи остались, показываем обновленный список
                     showDailyNotesModal(dateString); 
                 } else {
-                    // Если все удалены, закрываем заметки и переходим на календарь
                     closeNotesModal(); 
                     switchView('calendar');
                 }
@@ -357,7 +388,6 @@
             document.getElementById('energy-value').textContent = energySlider.value;
         }
 
-        // Новая функция для обработки клика по записи в списке
         function showLogActionModal(log) {
             loadedLogForAction = log;
             const time = formatTimestampToTime(log.id);
@@ -373,24 +403,21 @@
 
             showModal("Действие с Записью", `Запись от ${time} (${log.timeOfDay}). Выберите действие.`, customButtons);
             
-            // Назначение обработчиков для кастомных кнопок
             document.getElementById('modal-view-edit').onclick = () => {
-                closeModal(); // Закрываем модальное окно действия
+                closeModal(); 
                 
-                // Загружаем данные в основную форму
                 switchView('input');
                 document.getElementById('date-input').value = dateString;
                 updateMoodSelection(log.mood);
                 document.getElementById('stress-slider').value = log.stress;
                 document.getElementById('energy-slider').value = log.energy;
                 document.getElementById('note-input').value = log.note || '';
-                loadDataForDate(dateString); // Обновляем другие UI элементы
+                loadDataForDate(dateString); 
                 showTempSuccessMessage(`Запись от ${time} загружена. Сохранение создаст НОВУЮ запись.`);
             };
 
             document.getElementById('modal-delete').onclick = () => {
-                // Подтверждение перед удалением
-                closeModal(); // Закрываем первое модальное окно
+                closeModal(); 
                 const confirmButtons = `
                     <div class="flex space-x-3">
                         <button id="confirm-delete" class="flex-1 py-2 rounded-lg text-white font-semibold bg-red-500 hover:bg-red-600">Удалить</button>
@@ -419,14 +446,12 @@
             entryCountSpan.textContent = count;
             
             if (count > 0) {
-                // Если есть записи, подгружаем последнюю для отображения
                 updateMoodSelection(log.mood);
                 stressSlider.value = log.stress;
                 energySlider.value = log.energy;
                 noteInput.value = log.note || '';
                 deleteAllButton.classList.remove('hidden');
             } else {
-                // Если записей нет, сбрасываем форму
                 updateMoodSelection(3);
                 stressSlider.value = 5;
                 energySlider.value = 5;
@@ -452,27 +477,23 @@
                 stress: parseInt(document.getElementById('stress-slider').value),
                 energy: parseInt(document.getElementById('energy-slider').value),
                 note: document.getElementById('note-input').value.trim(),
-                id: timestamp, // Уникальный ID для каждой записи (Timestamp)
-                timeOfDay: getTimeOfDay(timestamp) // Автоматическое определение
+                id: timestamp, 
+                timeOfDay: getTimeOfDay(timestamp) 
             };
             
             window.dailyLogs.push(dataToSave);
             saveDailyLogsToLocal();
 
-            // --- Обратная связь ---
             playSuccessSound();
             showTempSuccessMessage(`Запись сохранена! (${getTimeOfDay(timestamp)})`);
 
-            // Сброс поля заметок после сохранения
             document.getElementById('note-input').value = '';
             
-            // Обновление UI для отображения новой записи
             loadDataForDate(date);
         }
 
 
         function setupInputListeners() {
-            // Используем безопасное получение сегодняшней даты
             document.getElementById('date-input').value = getTodayDateString();
 
             document.querySelectorAll('.rating-option[data-mood]').forEach(btn => {
@@ -486,7 +507,6 @@
             document.getElementById('date-input').addEventListener('change', () => loadDataForDate());
             
             document.getElementById('theme-selector').addEventListener('change', (e) => {
-                // При смене базовой темы
                 applyTheme(e.target.value);
             });
             
@@ -510,7 +530,7 @@
                 renderCalendar();
             } else if (viewId === 'charts') {
                 updateCharts();
-                renderMonthlyReport(); // Обновление сводок
+                renderMonthlyReport(); 
             }
         }
 
@@ -524,7 +544,6 @@
                 updateCharts();
                 renderMonthlyReport();
             }
-            // Гарантируем, что данные для текущей даты установлены
             loadDataForDate();
         }
 
@@ -534,7 +553,6 @@
             const dailyData = dailyAverages[dateString];
             if (!dailyData || dailyData.count === 0) return;
 
-            // Используем безопасный Date.parse и toLocaleDateString для отображения
             const displayDate = new Date(Date.parse(dateString)).toLocaleDateString('ru-RU', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
             document.getElementById('notes-modal-date').textContent = displayDate;
             
@@ -551,7 +569,6 @@
 
                 const logElement = document.createElement('div');
                 logElement.className = 'p-3 rounded-lg shadow-md cursor-pointer transition hover:shadow-xl mb-3 border-l-4';
-                // Используем полупрозрачный фон настроения и статический цвет акцента для текста
                 logElement.style.backgroundColor = moodColorBg.replace('rgb', 'rgba').replace(')', ', 0.3)'); 
                 logElement.style.borderColor = moodColorBorder;
 
@@ -567,7 +584,6 @@
                     <p class="text-sm italic text-gray-800">${notePreview}</p>
                 `;
                 
-                // При клике открываем модальное окно действия (просмотр/удаление)
                 logElement.onclick = () => showLogActionModal(log); 
 
                 notesList.appendChild(logElement);
@@ -598,7 +614,6 @@
             }
 
             for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
-                // Использование новой безопасной функции для создания строки даты
                 const dateString = createSafeDateString(currentYear, currentMonth, day);
                 const dailyData = dailyAverages[dateString];
                 
@@ -614,12 +629,10 @@
                         document.getElementById('date-input').value = dateString;
                         loadDataForDate(dateString); 
                         
-                        // Показываем модальное окно заметок, если есть записи
                         showDailyNotesModal(dateString);
                     };
                     dayCell.setAttribute('title', `Ср. Настроение: ${dailyData.mood.toFixed(1)} (${dailyData.count} зап.)\nСр. Стресс: ${dailyData.stress.toFixed(1)}`);
                     
-                    // Индикатор точки появляется только при наличии заметки
                     if (dailyData.hasNote) {
                         const dot = document.createElement('div');
                         dot.className = 'absolute top-1 right-1 w-2 h-2 rounded-full dynamic-bg shadow-lg';
@@ -652,14 +665,10 @@
 
         // --- Логика Аналитики (Отчеты) ---
         
-        /**
-         * @description Рассчитывает распределение настроения за текущий месяц календаря.
-         */
         function calculateMonthlyReport() {
             const report = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, totalDays: 0 };
             const dateObj = new Date(currentYear, currentMonth);
             
-            // Определяем безопасные границы месяца
             const firstDayOfMonth = createSafeDateString(dateObj.getFullYear(), dateObj.getMonth(), 1);
             const lastDayOfMonthDate = new Date(dateObj.getFullYear(), dateObj.getMonth() + 1, 0);
             const lastDayOfMonth = createSafeDateString(lastDayOfMonthDate.getFullYear(), lastDayOfMonthDate.getMonth(), lastDayOfMonthDate.getDate());
@@ -675,9 +684,6 @@
             return report;
         }
 
-        /**
-         * @description Рендерит секцию месячного отчета.
-         */
         function renderMonthlyReport() {
             const report = calculateMonthlyReport();
             
@@ -715,38 +721,33 @@
 
         // --- Логика Графиков (Chart.js) ---
 
-        // Создает вертикальный градиент
         function createGradient(ctx, chartArea, colorStops) {
-            // Градиент от верхнего края (High) к нижнему (Low)
             const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
             colorStops.forEach(stop => gradient.addColorStop(stop.offset, stop.color));
             return gradient;
         }
 
-        // Градиент для заливки (Стресс) - от зеленого (внизу) до красного (вверху)
         function createStressFillGradient(ctx, chartArea) {
             return createGradient(ctx, chartArea, [
-                { offset: 0.0, color: 'rgba(244, 67, 54, 0.4)' }, // Красный (High)
-                { offset: 0.5, color: 'rgba(255, 235, 59, 0.4)' }, // Желтый (Mid)
-                { offset: 1.0, color: 'rgba(76, 175, 80, 0.4)' } // Зеленый (Low)
+                { offset: 0.0, color: 'rgba(244, 67, 54, 0.4)' }, 
+                { offset: 0.5, color: 'rgba(255, 235, 59, 0.4)' }, 
+                { offset: 1.0, color: 'rgba(76, 175, 80, 0.4)' } 
             ]);
         }
         
-        // Градиент для линии Настроения (Красный к Акценту)
         function createMoodLineGradient(ctx, chartArea) {
             const accent = getComputedStyle(document.documentElement).getPropertyValue('--p-accent');
             return createGradient(ctx, chartArea, [
-                { offset: 0.0, color: accent },        // 5: Accent (High Mood)
-                { offset: 0.5, color: '#FFEB3B' },     // 3: Yellow (Mid)
-                { offset: 1.0, color: '#F44336' }      // 1: Red (Low Mood)
+                { offset: 0.0, color: accent },        
+                { offset: 0.5, color: '#FFEB3B' },     
+                { offset: 1.0, color: '#F44336' }      
             ]);
         }
         
-        // Градиент для линии Стресса (Зеленый к Красному)
         function createStressLineGradient(ctx, chartArea) {
             return createGradient(ctx, chartArea, [
-                { offset: 0.0, color: '#F44336' }, // 10: Red (High Stress)
-                { offset: 1.0, color: '#4CAF50' }  // 1: Green (Low Stress)
+                { offset: 0.0, color: '#F44336' }, 
+                { offset: 1.0, color: '#4CAF50' }  
             ]);
         }
 
@@ -768,7 +769,6 @@
                     datasets: [{
                         label: 'Среднее Настроение',
                         data: moodData,
-                        // НОВОЕ: Градиент для линии Настроения
                         borderColor: (context) => {
                             const chart = context.chart;
                             if (chart.chartArea) {
@@ -811,7 +811,6 @@
                         pointBackgroundColor: periodData.map(data => data ? getStressColor(data.stress) : 'gray'),
                         pointRadius: 6, 
                         fill: 'start', 
-                        // НОВОЕ: Градиент для линии Стресса
                         borderColor: (context) => {
                             const chart = context.chart;
                             if (chart.chartArea) {
@@ -820,7 +819,6 @@
                             return mainTextColor; 
                         },
                         borderWidth: 3,
-                        // Градиент для заливки (старая логика)
                         backgroundColor: (context) => {
                             const chart = context.chart;
                             if (chart.chartArea) {
@@ -871,7 +869,7 @@
                 displayEndDate.setHours(23, 59, 59, 999); 
                 
                 rangeLabel = `${startDate.toLocaleDateString('ru-RU', {day: 'numeric', month: 'short'})} - ${displayEndDate.toLocaleDateString('ru-RU', {day: 'numeric', month: 'short'})}`;
-            } else { // month
+            } else { 
                 startDate = new Date(dateOfInterest.getFullYear(), dateOfInterest.getMonth(), 1);
                 startDate.setHours(0, 0, 0, 0);
 
@@ -886,19 +884,17 @@
             const dates = [];
             let cursor = new Date(startDate);
             
-            // Используем безопасный способ для итерации по дням
             while (cursor.toISOString().split('T')[0] <= displayEndDate.toISOString().split('T')[0]) {
                 const year = cursor.getFullYear();
                 const month = cursor.getMonth();
                 const day = cursor.getDate();
-                dates.push(createSafeDateString(year, month, day)); // Используем безопасный DateString
+                dates.push(createSafeDateString(year, month, day)); 
                 cursor.setDate(cursor.getDate() + 1);
             }
             
             const periodData = dates.map(date => dailyAverages[date] || null);
             
             const labels = dates.map(dateString => {
-                // Преобразуем строку обратно в Date (используя UTC для правильной даты)
                 const date = new Date(Date.parse(dateString)); 
                 return period === 'week' ? date.toLocaleDateString('ru-RU', { weekday: 'short' }) : date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'numeric' });
             });
@@ -907,29 +903,27 @@
         }
 
         window.changeChartPeriod = (offset) => {
-            currentChartDate = new Date(currentChartDate); // Создаем копию
+            currentChartDate = new Date(currentChartDate); 
             if (currentChartPeriod === 'week') {
                 currentChartDate.setDate(currentChartDate.getDate() + offset * 7);
-            } else { // month
+            } else { 
                 currentChartDate.setMonth(currentChartDate.getMonth() + offset);
             }
-            // Сбрасываем до сегодняшней даты в полдень, чтобы избежать сдвигов
             currentChartDate = new Date(currentChartDate.getFullYear(), currentChartDate.getMonth(), currentChartDate.getDate(), 12, 0, 0, 0);
             updateCharts();
-            renderMonthlyReport(); // Обновление отчета
+            renderMonthlyReport(); 
         }
         
         // --- Логика AI Анализа ---
         
         function getPromptDataForLastWeek() {
             const today = getTodayDateString();
-            const allDates = Object.keys(dailyAverages).sort().reverse(); // Сортируем по убыванию
+            const allDates = Object.keys(dailyAverages).sort().reverse(); 
             
             const sevenDaysAgo = new Date();
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); 
             const sevenDaysAgoString = createSafeDateString(sevenDaysAgo.getFullYear(), sevenDaysAgo.getMonth(), sevenDaysAgo.getDate());
             
-            // Фильтруем записи за последние 7 дней (включая сегодня)
             const recentLogs = allDates.filter(date => date >= sevenDaysAgoString && date <= today);
             
             if (recentLogs.length === 0) {
@@ -942,7 +936,7 @@
             let totalEntries = 0;
             let detailedLogs = "";
             
-            recentLogs.reverse().forEach(date => { // Итерируем от старого к новому для хронологического запроса
+            recentLogs.reverse().forEach(date => { 
                 const dayData = dailyAverages[date];
                 if (!dayData) return;
 
@@ -951,8 +945,7 @@
                 totalEnergy += dayData.energy * dayData.count;
                 totalEntries += dayData.count;
 
-                // Добавляем день недели
-                const dateObj = new Date(Date.parse(date + 'T12:00:00Z')); // Парсим как UTC для правильного дня
+                const dateObj = new Date(Date.parse(date + 'T12:00:00Z')); 
                 const dayOfWeek = dateObj.toLocaleDateString('ru-RU', { weekday: 'short', timeZone: 'UTC' }); 
                 
                 detailedLogs += `\n--- ${date} (${dayOfWeek}) ---\n`;
@@ -960,7 +953,6 @@
                 
                 dayData.allLogs.forEach(log => {
                     if (log.note && log.note.trim()) {
-                        // Очистка заметок от кавычек и длинных пробелов
                         const cleanNote = log.note.trim().replace(/['"]/g, '').replace(/\s{2,}/g, ' '); 
                         detailedLogs += `  [${log.timeOfDay}]: Настроение: ${log.mood}. Заметка: "${cleanNote}".\n`;
                     }
@@ -995,9 +987,19 @@ ${detailedLogs}
             const outputElement = document.getElementById('ai-analysis-output');
             const analyzeButton = document.getElementById('trigger-ai-analysis-button');
             const { prompt: userPrompt, hasData } = getPromptDataForLastWeek();
-
-            outputElement.innerHTML = '';
             
+            // 1. Проверка API Key
+            if (!userProvidedApiKey) {
+                const isKeyInjected = typeof window.__initial_auth_token !== 'undefined'; // Проверяем, есть ли хотя бы токен
+                // Если ключ не введен и среда не гарантирует его, выдаем ошибку
+                if (!isKeyInjected) {
+                    outputElement.innerHTML = `<p class="text-red-500 font-semibold mt-4">❌ API Key отсутствует. Пожалуйста, введите ваш Gemini API Key в Настройках, чтобы использовать AI-анализ.</p>`;
+                    return;
+                }
+            }
+            
+            outputElement.innerHTML = '';
+
             const spinner = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 dynamic-text" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Анализирую...`;
 
             if (!hasData) {
@@ -1021,16 +1023,10 @@ ${detailedLogs}
                 5. Используй только русский язык. Твой ответ должен быть структурирован в виде 3-5 небольших абзацев. Не используй списки, подзаголовки или форматирование Markdown (например, жирный текст), только абзацы.
             `;
 
-            const apiKey = ""; // Canvas provides this
-            // Убеждаемся, что ключ всегда включен в URL, даже если он пустой
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+            // Используем пользовательский ключ, если он есть, иначе - пустую строку, чтобы Canvas вставил свой.
+            const apiKeyToUse = userProvidedApiKey; 
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKeyToUse}`;
 
-            const payload = {
-                contents: [{ parts: [{ text: userPrompt }] }],
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-            };
-
-            // Упрощенный запрос без цикла backoff
             try {
                 const response = await fetch(apiUrl, {
                     method: 'POST',
@@ -1039,7 +1035,6 @@ ${detailedLogs}
                 });
 
                 if (!response.ok) {
-                    // Обработка 403, 400, 500 и других ошибок
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
@@ -1047,16 +1042,14 @@ ${detailedLogs}
                 const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
                 
                 if (text) {
-                    // Заменяем переносы строки на параграфы для красивого отображения
                     const formattedText = text.split('\n\n').map(p => `<p class="mb-3">${p.trim()}</p>`).join('');
-                    // Используем dynamic-border для акцента
                     outputElement.innerHTML = `<div class="p-4 bg-white rounded-xl shadow-lg border-l-4 dynamic-border border-2">${formattedText}</div>`;
                 } else {
                     outputElement.innerHTML = '<p class="text-red-500 mt-4">❌ Не удалось получить анализ от ИИ (пустой ответ). Попробуйте еще раз.</p>';
                 }
             } catch (error) {
                 console.error("Fetch error:", error);
-                outputElement.innerHTML = `<p class="text-red-500 mt-4">❌ Произошла ошибка при обращении к сервису: ${error.message}. Пожалуйста, убедитесь, что ваш API-ключ действителен и имеет достаточные разрешения.</p>`;
+                outputElement.innerHTML = `<p class="text-red-500 mt-4">❌ Произошла ошибка при обращении к сервису: ${error.message}. Если ошибка повторяется, попробуйте ввести ваш личный API Key в Настройках.</p>`;
             } finally {
                 analyzeButton.disabled = false;
                 analyzeButton.textContent = 'Получить Анализ за Неделю';
@@ -1066,6 +1059,7 @@ ${detailedLogs}
         // --- Инициализация при загрузке DOM ---
 
         document.addEventListener('DOMContentLoaded', () => {
+            loadUserApiKey(); // Загружаем API key
             loadTheme();
             setupInputListeners();
             loadDailyLogsFromLocal(); 
@@ -1086,22 +1080,19 @@ ${detailedLogs}
                     e.target.style.backgroundColor = 'var(--p-accent-light)';
 
                     currentChartPeriod = e.target.dataset.period;
-                    // Устанавливаем текущую дату в полдень для начала отсчета
                     const today = new Date();
                     currentChartDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0, 0);
                     updateCharts();
-                    renderMonthlyReport(); // Обновление отчета
+                    renderMonthlyReport(); 
                 });
             });
 
             document.getElementById('settings-button').onclick = openSettingsModal;
-            document.getElementById('close-settings-modal').onclick = closeSettingsModal;
 
             // Инициализация графиков и вида
             document.querySelector('.chart-period-button[data-period="week"]').click();
             switchView('input');
             
-            // Заполнение селектора тем
             const selector = document.getElementById('theme-selector');
             for (const themeName in THEMES) {
                 const option = document.createElement('option');
@@ -1109,7 +1100,7 @@ ${detailedLogs}
                 option.textContent = themeName;
                 selector.appendChild(option);
             }
-            loadTheme(); // Загружаем сохраненную тему после заполнения
+            loadTheme(); 
         });
 
     </script>
@@ -1118,7 +1109,6 @@ ${detailedLogs}
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         
         :root {
-            /* Эти переменные будут установлены функцией applyTheme */
             --p-bg: #F8F8FF; 
             --p-text: #4527A0; 
             --p-accent: #6A1B9A; 
@@ -1142,7 +1132,6 @@ ${detailedLogs}
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
         }
         
-        /* Динамический цвет для кнопок и акцентов (теперь статичный) */
         .dynamic-bg {
             background-color: var(--p-accent) !important;
             color: white;
@@ -1173,7 +1162,6 @@ ${detailedLogs}
             border-color: var(--p-accent);
         }
         
-        /* Улучшенные градиентные ползунки */
         input[type="range"] {
             -webkit-appearance: none;
             width: 100%;
@@ -1185,23 +1173,20 @@ ${detailedLogs}
             width: 24px;
             height: 24px;
             border-radius: 50%;
-            background: var(--p-accent); /* Используем статичный акцент */
+            background: var(--p-accent); 
             cursor: grab;
             margin-top: -8px; 
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
 
-        /* Стиль для градиента Стресса (1=низкий, 10=высокий) */
         #stress-slider {
             background: linear-gradient(to right, #4CAF50 0%, #FFEB3B 50%, #F44336 100%);
         }
-        /* Стиль для градиента Энергии (1=низкий, 10=высокий) */
         #energy-slider {
             background: linear-gradient(to right, #9E9E9E 0%, #FFEB3B 50%, #03A9F4 100%);
         }
 
 
-        /* Календарь */
         .calendar-grid {
             display: grid;
             grid-template-columns: repeat(7, 1fr);
@@ -1215,7 +1200,7 @@ ${detailedLogs}
             font-weight: 600;
             transition: all 0.2s;
             min-height: 40px;
-            position: relative; /* Добавлено для позиционирования точки */
+            position: relative; 
         }
         .day-cell:hover {
             cursor: pointer;
@@ -1279,7 +1264,7 @@ ${detailedLogs}
                     <div class="flex justify-between items-center text-center">
                         <div class="flex flex-col items-center"><button data-mood="1" class="rating-option w-10 h-10 flex items-center justify-center rounded-full text-lg bg-red-100">1</button><span class="text-xs mt-1 text-gray-500">Плохо</span></div>
                         <div class="flex flex-col items-center"><button data-mood="2" class="rating-option w-10 h-10 flex items-center justify-center rounded-full text-lg bg-orange-100">2</button><span class="text-xs mt-1 text-gray-500">Не очень</span></div>
-                        <div class="flex flex-col items-center"><button data-mood="3" class="rating-option w-10 h-10 flex items-center justify-center rounded-full text-lg bg-yellow-100">3</button><span class="text-xs mt-1 text-gray-500">Норм</span></div>
+                        <div class="flex flex-col items-center"><button data-mood="3" class="rating-option selected w-10 h-10 flex items-center justify-center rounded-full text-lg bg-yellow-100">3</button><span class="text-xs mt-1 text-gray-500">Норм</span></div>
                         <div class="flex flex-col items-center"><button data-mood="4" class="rating-option w-10 h-10 flex items-center justify-center rounded-full text-lg bg-green-100">4</button><span class="text-xs mt-1 text-gray-500">Хорошо</span></div>
                         <div class="flex flex-col items-center"><button data-mood="5" class="rating-option w-10 h-10 flex items-center justify-center rounded-full text-lg bg-blue-100">5</button><span class="text-xs mt-1 text-gray-500">Отлично</span></div>
                     </div>
@@ -1403,7 +1388,7 @@ ${detailedLogs}
         <div id="modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
             <div class="bg-white p-6 rounded-xl shadow-2xl max-w-xs w-full text-center dynamic-border" style="border-width: 2px;">
                 <h3 id="modal-title" class="text-xl font-bold mb-3 dynamic-text"></h3>
-                <div id="modal-message" class="mb-4 text-gray-700"></div>
+                <div id="modal-message" class="mb-4 text-gray-700 overflow-y-auto max-h-64"></div>
                 
                 <!-- Контейнер для стандартной кнопки -->
                 <div id="modal-default-button-container">
@@ -1417,17 +1402,24 @@ ${detailedLogs}
             </div>
         </div>
 
-        <!-- Модальное окно Настроек -->
+        <!-- Модальное окно Настроек (Обновлено) -->
         <div id="settings-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50 p-4">
             <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-sm w-full dynamic-border" style="border-width: 2px;">
                 <h3 class="text-xl font-bold mb-4 text-center dynamic-text">Настройки</h3>
+                
+                <!-- Секция API Key -->
+                <div class="mb-6 border-b pb-4 border-gray-200">
+                    <label for="gemini-api-key-input" class="block text-sm font-medium mb-2 dynamic-text">Gemini API Key (Для AI Анализа):</label>
+                    <input type="password" id="gemini-api-key-input" placeholder="AIzaSy... Ваш секретный ключ" class="w-full p-2 rounded-lg text-gray-800 border-2 dynamic-border focus:ring-2 focus:ring-white" />
+                    <button onclick="showApiKeyHelp()" class="text-sm mt-1 text-blue-500 hover:underline">Что это?</button>
+                </div>
                 
                 <label for="theme-selector" class="block text-sm font-medium mb-2 dynamic-text">Базовая тема оформления:</label>
                 <select id="theme-selector" class="w-full p-2 rounded-lg text-gray-800 border-2 dynamic-border focus:ring-2 focus:ring-white">
                     <!-- Опции будут заполнены JS -->
                 </select>
 
-                <button id="close-settings-modal" class="mt-6 w-full py-2 rounded-lg text-white font-semibold dynamic-bg">Закрыть</button>
+                <button id="save-settings-button" onclick="saveUserApiKey()" class="mt-6 w-full py-2 rounded-lg text-white font-semibold dynamic-bg">Сохранить и Закрыть</button>
             </div>
         </div>
         
