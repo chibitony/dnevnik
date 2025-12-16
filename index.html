@@ -10,17 +10,34 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <!-- Tone.js CDN для звуковой обратной связи (тихий "клик") -->
     <script src="https://unpkg.com/tone@14.8.49/build/Tone.js"></script>
+    <!-- Lucide Icons для красивых иконок -->
+    <script src="https://unpkg.com/lucide@latest"></script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
         
-        /* Цветовая схема по умолчанию (Лаванда) - ОЧЕНЬ НЕЖНАЯ */
+        /* Цветовая схема по умолчанию (Лаванда) - Светлая */
         :root {
-            --p-bg: #F9FAFF; 
-            --p-text: #585098; 
-            --p-accent: #B39DDB; 
-            --p-accent-light: #EFE7FC; 
+            --p-bg: #F8FAFF; 
+            --p-text: #334155; /* Slate-700 */
+            --p-text-muted: #64748b; /* Slate-500 */
+            --p-accent: #8B5CF6; /* Violet-500 */
+            --p-accent-light: #EDE9FE; /* Violet-100 */
             --p-bg-card: #FFFFFF;
+            --p-border: #e2e8f0;
+            --p-shadow: rgba(0, 0, 0, 0.1);
+        }
+
+        /* Темная тема */
+        body.dark-mode {
+            --p-bg: #0f172a; /* Slate-900 */
+            --p-text: #f1f5f9; /* Slate-100 */
+            --p-text-muted: #94a3b8; /* Slate-400 */
+            --p-accent: #a78bfa; /* Violet-400 */
+            --p-accent-light: #1e293b; /* Slate-800 */
+            --p-bg-card: #1e293b; /* Slate-800 */
+            --p-border: #334155; /* Slate-700 */
+            --p-shadow: rgba(0, 0, 0, 0.3);
         }
 
         /* Универсальный класс для плавных переходов */
@@ -28,1340 +45,1295 @@
              transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
+        /* Настройка шрифта и фона */
         body {
             font-family: 'Inter', sans-serif;
             background-color: var(--p-bg);
-            color: #333;
-        }
-        
-        /* Стили для интерактивных элементов */
-        .tab-button, .nav-button, .chart-period-button, .rating-option, .day-cell, 
-        .shadow-md, .shadow-lg, [onclick], button { 
-             transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-        }
-
-        /* Динамические цвета для Tailwind-классов */
-        .dynamic-text { color: var(--p-text); }
-        .dynamic-bg { background-color: var(--p-accent); }
-        .dynamic-bg-light { background-color: var(--p-accent-light); }
-        .dynamic-border { border-color: var(--p-accent); }
-        .dynamic-hover-bg:hover { background-color: var(--p-accent-light); }
-        .dynamic-hover-scale:hover { transform: scale(1.02); }
-
-        .tab-button {
-            border-radius: 9999px; 
             color: var(--p-text);
         }
-        .tab-button.active {
-            background-color: var(--p-accent-light);
-            font-weight: 700;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+
+        .card-bg {
+            background-color: var(--p-bg-card);
+            border: 1px solid var(--p-border);
         }
-        
-        /* Стили для выбора настроения и стресса */
-        .rating-option, .stress-option {
-            border: 2px solid var(--p-accent);
-            color: var(--p-text);
-            cursor: pointer;
-            border-radius: 9999px;
-            padding: 8px 16px;
-            font-weight: 600;
-            user-select: none;
-        }
-        .rating-option:hover, .stress-option:hover {
-            transform: scale(1.05);
-        }
-        .rating-option.selected, .stress-option.selected {
-            background-color: var(--p-accent);
-            color: white;
+
+        /* Визуальное оформление активного состояния кнопок (для кружков и вкладок) */
+        .mood-btn.active, .stress-btn.active {
             transform: scale(1.1);
-            border-color: var(--p-accent);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            filter: brightness(1.1);
+        }
+        
+        .stress-btn.active {
+             box-shadow: 0 0 0 4px var(--p-accent-light), 0 0 0 6px var(--p-accent);
         }
 
-        /* Стили для ячеек календаря */
-        .day-cell {
-            padding: 8px 4px;
-            border-radius: 8px;
-            text-align: center;
-            font-size: 0.8rem;
-            font-weight: 600;
-            min-height: 40px;
-            position: relative; 
-            cursor: pointer;
+        /* Скрытая прокрутка для боковой панели */
+        #logs-list {
+            scrollbar-width: none; /* Firefox */
         }
-        .day-cell:hover {
-            opacity: 0.9;
-            box-shadow: 0 0 0 2px var(--p-text), 0 4px 6px rgba(0,0,0,0.1); 
-        }
-        .day-cell.has-data {
-            border: 2px solid var(--p-accent);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        .day-cell.is-today {
-            box-shadow: 0 0 0 3px var(--p-accent);
-        }
-        .day-cell.selected-day {
-            background-color: var(--p-accent);
-            color: white;
+        #logs-list::-webkit-scrollbar {
+            display: none; /* Chrome, Safari, Opera */
         }
 
-        /* Анимация перехода между видами */
+        /* Плавное появление вкладок */
         .view-content {
+            display: none;
             opacity: 0;
-            transform: translateY(10px);
-            transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+            transition: opacity 0.5s ease-in-out;
         }
         .view-content.active-view {
+            display: block;
             opacity: 1;
-            transform: translateY(0);
         }
 
-        /* Стили для Range Input */
-        input[type="range"] {
-            -webkit-appearance: none;
+        /* Увеличенная высота графика */
+        .chart-container {
+            height: 350px; 
             width: 100%;
-            height: 10px;
-            background: var(--p-accent-light);
-            border-radius: 5px;
-            outline: none;
-        }
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 24px;
-            height: 24px;
-            background: var(--p-accent);
-            border: 4px solid var(--p-bg);
-            border-radius: 50%;
-            cursor: pointer;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            transition: background 0.3s, transform 0.3s;
-        }
-        input[type="range"]::-webkit-slider-thumb:hover {
-            transform: scale(1.1);
-        }
-        input[type="range"]::-moz-range-thumb {
-            width: 24px;
-            height: 24px;
-            background: var(--p-accent);
-            border: 4px solid var(--p-bg);
-            border-radius: 50%;
-            cursor: pointer;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            transition: background 0.3s, transform 0.3s;
-        }
-        input[type="range"]::-moz-range-thumb:hover {
-            transform: scale(1.1);
         }
 
-        /* Стили для Chart.js */
-        #mood-chart-container {
-            max-height: 300px;
+        /* Стилизация Markdown для окна анализа */
+        #analysis-output h2 {
+            font-size: 1.5rem; 
+            font-weight: 700;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--p-accent);
+            border-bottom: 2px solid var(--p-accent-light);
+            padding-bottom: 0.25rem;
+        }
+        #analysis-output h3 {
+            font-size: 1.25rem; 
+            font-weight: 600;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+            color: var(--p-text);
+        }
+        #analysis-output p { margin-bottom: 1rem; line-height: 1.6; }
+        #analysis-output ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+        #analysis-output li { margin-bottom: 0.5rem; }
+
+        /* Стилизация Таблиц в Markdown */
+        #analysis-output table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            box-shadow: 0 1px 3px var(--p-shadow);
+        }
+        #analysis-output th, #analysis-output td {
+            border: 1px solid var(--p-border);
+            padding: 0.75rem;
+            text-align: left;
+        }
+        #analysis-output th {
+            background-color: var(--p-accent-light);
+            color: var(--p-text);
+            font-weight: 600;
+        }
+        #analysis-output tr:nth-child(even) {
+            background-color: var(--p-bg);
         }
         
-        /* Стили для Markdown-контента */
-        #ai-analysis-output p, #ai-analysis-output ul {
-            margin-bottom: 0.75rem;
+        /* Стили для календарных дней */
+        .calendar-day-cell {
+            transition: all 0.15s ease-in-out;
+            cursor: pointer;
         }
-        #ai-analysis-output ul {
-            list-style-type: disc;
-            padding-left: 1.5rem;
+        .calendar-day-cell:hover {
+            opacity: 0.85;
+            transform: translateY(-2px);
         }
+
+        /* Инпуты в темной теме */
+        body.dark-mode input, 
+        body.dark-mode textarea, 
+        body.dark-mode select {
+            background-color: #0f172a;
+            color: #f1f5f9;
+            border-color: #334155;
+        }
+        
+        /* Кнопка переключения темы */
+        .theme-toggle-btn {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 50;
+        }
+        
+        /* Линейка настроения */
+        .mood-scale-segment {
+            height: 8px;
+            transition: background-color 0.3s;
+        }
+
     </style>
 </head>
-<body class="min-h-screen">
+<body class="p-4 md:p-8 min-h-screen smooth-transition">
 
-    <!-- Основной контейнер приложения -->
-    <div class="container mx-auto p-4 max-w-2xl">
-        <header class="text-center py-6">
-            <h1 class="text-3xl font-extrabold dynamic-text">Дневник Настроения</h1>
-            <p class="text-gray-500 mt-1">Отслеживайте свои эмоции и получайте анализ от Gemini AI</p>
+    <!-- Кнопка быстрой смены темы -->
+    <button id="global-theme-toggle" class="theme-toggle-btn p-3 rounded-full bg-white dark:bg-slate-800 shadow-lg border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-gray-200 hover:scale-110 smooth-transition">
+        <i data-lucide="moon" class="block dark:hidden"></i>
+        <i data-lucide="sun" class="hidden dark:block"></i>
+    </button>
+
+    <div id="app-container" class="max-w-6xl mx-auto">
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-extrabold" style="color: var(--p-text)">
+                Дневник Настроения <span style="color: var(--p-accent)">v3.5</span>
+            </h1>
+            <p class="mt-1" style="color: var(--p-text-muted)">Отслеживание, анализ и управление своим эмоциональным состоянием.</p>
         </header>
 
-        <!-- Меню вкладок -->
-        <nav class="flex justify-around bg-white p-2 rounded-full shadow-lg mb-6">
-            <!-- Уменьшаем px-4 до px-3 на всех кнопках для экономии места на мобильных -->
-            <button class="tab-button active flex-1 py-2 px-3 text-sm md:text-base smooth-transition" data-view="input" onclick="switchView('input')">Запись</button>
-            <button class="tab-button flex-1 py-2 px-3 text-sm md:text-base smooth-transition" data-view="calendar" onclick="switchView('calendar')">Календарь</button>
-            <button class="tab-button flex-1 py-2 px-3 text-sm md:text-base smooth-transition" data-view="charts" onclick="switchView('charts')">Аналитика</button>
-            <!-- Убираем text-lg с мобильной версии для иконки, чтобы она не расширяла кнопку -->
-            <button class="tab-button flex-1 py-2 px-3 text-sm md:text-base smooth-transition" data-view="settings" onclick="switchView('settings')" title="Настройки">&#x2699;</button>
+        <!-- Меню Вкладок -->
+        <nav class="flex justify-center mb-8 p-1 card-bg rounded-xl shadow-lg smooth-transition">
+            <button class="tab-btn flex-1 py-3 px-4 text-center text-sm font-semibold rounded-lg smooth-transition hover:bg-gray-100 dark:hover:bg-slate-700" style="color: var(--p-text)" data-target="log-entry">
+                Запись
+            </button>
+            <button class="tab-btn flex-1 py-3 px-4 text-center text-sm font-semibold rounded-lg smooth-transition hover:bg-gray-100 dark:hover:bg-slate-700" style="color: var(--p-text)" data-target="logs">
+                Журнал
+            </button>
+            <button class="tab-btn flex-1 py-3 px-4 text-center text-sm font-semibold rounded-lg smooth-transition hover:bg-gray-100 dark:hover:bg-slate-700" style="color: var(--p-text)" data-target="analysis">
+                Анализ ИИ
+            </button>
+            <button class="tab-btn flex-1 py-3 px-4 text-center text-sm font-semibold rounded-lg smooth-transition hover:bg-gray-100 dark:hover:bg-slate-700" style="color: var(--p-text)" data-target="settings">
+                Настройки
+            </button>
         </nav>
 
-        <!-- --- ВИД 1: ВВОД ДАННЫХ --- -->
-        <div id="view-input" class="view-content active-view space-y-6">
-            <div class="bg-white p-6 rounded-2xl shadow-xl smooth-transition">
-                <h2 class="text-2xl font-bold mb-4 dynamic-text">Новая Запись</h2>
-                
-                <!-- Date Picker - НОВОЕ! -->
-                <div class="mb-6">
-                    <label for="log-date" class="block text-gray-700 font-semibold mb-2">Дата записи (по умолчанию - сегодня)</label>
-                    <input type="date" id="log-date" class="w-full p-3 border rounded-xl focus:ring-2 dynamic-border focus:ring-purple-300 smooth-transition">
-                </div>
+        <!-- 1. Вкладка "Запись" -->
+        <div id="log-entry" class="view-content">
+            <div class="card-bg p-6 md:p-8 rounded-xl shadow-xl smooth-transition">
+                <h2 class="text-2xl font-bold mb-4 border-b pb-2" style="color: var(--p-accent)" id="entry-title">Ежедневная Запись</h2>
 
-                <!-- Рейтинг Настроения (1-5) -->
-                <div class="mb-6 border-b pb-4">
-                    <label class="block text-gray-700 font-semibold mb-2">Настроение (1 - Ужасно, 5 - Великолепно)</label>
-                    <div id="mood-rating" class="flex justify-between space-x-2">
-                        <div class="rating-option flex-1 text-center" data-mood="1" onclick="selectMood(1)">1</div>
-                        <div class="rating-option flex-1 text-center" data-mood="2" onclick="selectMood(2)">2</div>
-                        <div class="rating-option selected flex-1 text-center" data-mood="3" onclick="selectMood(3)">3</div>
-                        <div class="rating-option flex-1 text-center" data-mood="4" onclick="selectMood(4)">4</div>
-                        <div class="rating-option flex-1 text-center" data-mood="5" onclick="selectMood(5)">5</div>
+                <!-- Дата и Время -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="log-date" class="block text-sm font-medium mb-1" style="color: var(--p-text-muted)">Дата:</label>
+                        <input type="date" id="log-date" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-violet-500 smooth-transition outline-none">
                     </div>
-                    <p id="mood-label" class="text-center mt-2 text-lg font-medium dynamic-text smooth-transition">Нормально</p>
-                </div>
-                
-                <!-- Рейтинг Стресса (1-5) - НОВОЕ! -->
-                <div class="mb-6">
-                    <label class="block text-gray-700 font-semibold mb-2">Уровень Стресса (1 - Низкий, 5 - Критический)</label>
-                    <div id="stress-rating" class="flex justify-between space-x-2">
-                        <div class="stress-option flex-1 text-center" data-stress="1" onclick="selectStress(1)">1</div>
-                        <div class="stress-option flex-1 text-center" data-stress="2" onclick="selectStress(2)">2</div>
-                        <div class="stress-option selected flex-1 text-center" data-stress="3" onclick="selectStress(3)">3</div>
-                        <div class="stress-option flex-1 text-center" data-stress="4" onclick="selectStress(4)">4</div>
-                        <div class="stress-option flex-1 text-center" data-stress="5" onclick="selectStress(5)">5</div>
+                    <div>
+                        <label for="log-time" class="block text-sm font-medium mb-1" style="color: var(--p-text-muted)">Время:</label>
+                        <input type="time" id="log-time" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-violet-500 smooth-transition outline-none">
                     </div>
-                    <p id="stress-label" class="text-center mt-2 text-lg font-medium dynamic-text smooth-transition">Умеренный</p>
                 </div>
 
-                <!-- Текстовое описание -->
+                <!-- Выбор Настроения (Кнопки генерируются JS для кастомных цветов) -->
                 <div class="mb-6">
-                    <label for="mood-notes" class="block text-gray-700 font-semibold mb-2">Что произошло? (Обязательно)</label>
-                    <textarea id="mood-notes" rows="4" class="w-full p-3 border rounded-xl focus:ring-2 dynamic-border focus:ring-purple-300 smooth-transition" placeholder="Опишите свои чувства и события дня..."></textarea>
+                    <label class="block text-sm font-medium mb-2" style="color: var(--p-text-muted)">Мое Настроение (1 - 5):</label>
+                    <div id="mood-selector" class="flex justify-between space-x-2 sm:space-x-4">
+                        <!-- Кнопки будут вставлены через JS -->
+                    </div>
+                     <!-- Новая Линейка Настроения -->
+                    <div id="mood-scale-visualizer" class="flex mt-4 rounded-full overflow-hidden">
+                        <div class="mood-scale-segment w-1/5 rounded-l-full" data-mood="1"></div>
+                        <div class="mood-scale-segment w-1/5" data-mood="2"></div>
+                        <div class="mood-scale-segment w-1/5" data-mood="3"></div>
+                        <div class="mood-scale-segment w-1/5" data-mood="4"></div>
+                        <div class="mood-scale-segment w-1/5 rounded-r-full" data-mood="5"></div>
+                    </div>
+                    <div class="flex justify-between text-xs mt-1" style="color: var(--p-text-muted)">
+                        <span>Ужасно</span>
+                        <span>Отлично</span>
+                    </div>
                 </div>
-                
-                <!-- Кнопка сохранения -->
-                <button onclick="saveLog()" class="w-full py-3 rounded-xl text-white font-bold text-lg dynamic-bg hover:opacity-90 smooth-transition shadow-lg">
-                    Сохранить Запись
-                </button>
-                
-                <!-- Сообщение об ошибке/успехе -->
-                <div id="message-box" class="mt-4 text-center p-3 rounded-lg hidden smooth-transition"></div>
-            </div>
-            
-            <!-- Секция Анализа от AI (для отображения после сохранения) -->
-            <div id="ai-analysis-container" class="bg-white p-6 rounded-2xl shadow-xl mt-6 hidden smooth-transition">
-                <h2 class="text-2xl font-bold mb-4 dynamic-text">Анализ Gemini AI</h2>
-                <div id="ai-analysis-output" class="text-gray-700 space-y-3">
-                    <!-- Здесь будет сгенерированный текст -->
-                </div>
-                <div id="ai-citation-container" class="mt-4 text-sm text-gray-500 border-t pt-3 hidden">
-                    <p class="font-semibold mb-1">Источники:</p>
-                    <ul id="ai-citation-list" class="list-disc list-inside space-y-1"></ul>
-                </div>
-                <div id="ai-loading" class="text-center py-4 hidden">
-                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-r-2 dynamic-border inline-block"></div>
-                    <p class="mt-2 text-gray-500">Генерация отчета...</p>
-                </div>
-            </div>
-        </div>
 
-        <!-- --- ВИД 2: КАЛЕНДАРЬ --- -->
-        <div id="view-calendar" class="view-content hidden space-y-4">
-            <div class="bg-white p-6 rounded-2xl shadow-xl smooth-transition">
-                <div class="flex justify-between items-center mb-4">
-                    <button onclick="changeMonth(-1)" class="nav-button dynamic-text p-2 rounded-full hover:bg-gray-100 smooth-transition">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                <!-- Выбор Уровня Стресса -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium mb-2" style="color: var(--p-text-muted)">Уровень Стресса (1 - 5):</label>
+                    <div id="stress-selector" class="flex justify-between space-x-2 sm:space-x-4">
+                        <button data-stress="1" class="stress-btn flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full aspect-square bg-cyan-100 text-cyan-700 hover:bg-cyan-200 smooth-transition" title="Очень низкий">1</button>
+                        <button data-stress="2" class="stress-btn flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full aspect-square bg-teal-100 text-teal-700 hover:bg-teal-200 smooth-transition" title="Низкий">2</button>
+                        <button data-stress="3" class="stress-btn flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full aspect-square bg-amber-100 text-amber-700 hover:bg-amber-200 smooth-transition" title="Средний">3</button>
+                        <button data-stress="4" class="stress-btn flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full aspect-square bg-red-200 text-red-800 hover:bg-red-300 smooth-transition" title="Высокий">4</button>
+                        <button data-stress="5" class="stress-btn flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full aspect-square bg-red-400 text-white hover:bg-red-500 smooth-transition" title="Критический">5</button>
+                    </div>
+                </div>
+
+                <!-- Поле для Заметки -->
+                <div class="mb-6">
+                    <label for="log-note" class="block text-sm font-medium mb-1" style="color: var(--p-text-muted)">Заметка дня:</label>
+                    <textarea id="log-note" rows="4" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-violet-500 smooth-transition outline-none" placeholder="Что произошло сегодня?"></textarea>
+                </div>
+
+                <div class="flex space-x-4">
+                    <button id="save-log-btn" class="flex-1 bg-violet-600 text-white font-semibold py-3 rounded-lg hover:bg-violet-700 smooth-transition shadow-md hover:shadow-lg">
+                        Сохранить Запись
                     </button>
-                    <h2 id="current-month-year" class="text-2xl font-bold dynamic-text"></h2>
-                    <button onclick="changeMonth(1)" class="nav-button dynamic-text p-2 rounded-full hover:bg-gray-100 smooth-transition">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                    </button>
-                </div>
-                
-                <div class="grid grid-cols-7 text-center font-bold text-gray-500 border-b pb-2">
-                    <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span class="text-red-500">Сб</span><span class="text-red-500">Вс</span>
-                </div>
-                
-                <div id="calendar-grid" class="grid grid-cols-7 gap-1 mt-2">
-                    <!-- Ячейки календаря будут сгенерированы JavaScript -->
-                </div>
-            </div>
-            
-            <!-- Краткая статистика за месяц -->
-            <div id="monthly-summary" class="bg-white p-6 rounded-2xl shadow-xl smooth-transition">
-                <h3 class="text-xl font-bold mb-3 dynamic-text">Статистика за месяц</h3>
-                <div id="monthly-report-output" class="text-gray-700 space-y-2">
-                    <!-- Здесь будет краткий отчет и средний балл -->
-                    <p>Среднее настроение: <span id="monthly-average-mood" class="font-bold dynamic-text">Н/Д</span></p>
-                    <p>Средний стресс: <span id="monthly-average-stress" class="font-bold dynamic-text">Н/Д</span></p>
-                    <p>Записей сделано: <span id="monthly-count" class="font-bold dynamic-text">0</span></p>
-                </div>
-                <div id="monthly-report-ai-output" class="mt-4 pt-4 border-t border-gray-100 hidden">
-                    <h4 class="font-semibold dynamic-text mb-2">Отчет от Gemini:</h4>
-                    <div id="monthly-report-text" class="text-sm text-gray-600"></div>
-                    <div id="report-ai-loading" class="text-center py-2 hidden">
-                        <div class="animate-pulse text-gray-400">Загрузка отчета...</div>
-                    </div>
-                    <button onclick="getMonthlyReport()" class="mt-3 py-1 px-4 text-sm rounded-lg text-white font-semibold dynamic-bg hover:opacity-90 smooth-transition">
-                        Сгенерировать Отчет
+                    <button id="cancel-edit-btn" class="hidden px-6 bg-gray-200 text-gray-700 font-semibold py-3 rounded-lg hover:bg-gray-300 smooth-transition shadow-md hover:shadow-lg">
+                        Отмена
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- --- ВИД 3: АНАЛИТИКА --- -->
-        <div id="view-charts" class="view-content hidden space-y-6">
-            <div class="bg-white p-6 rounded-2xl shadow-xl smooth-transition">
-                <h2 class="text-2xl font-bold mb-4 dynamic-text">График</h2>
+        <!-- 2. Вкладка "Журнал" -->
+        <div id="logs" class="view-content">
+            <div class="space-y-8">
                 
-                <!-- Панель выбора метрики -->
-                <div class="flex justify-center space-x-3 mb-4 border-b pb-3">
-                    <button class="chart-type-button active py-2 px-4 rounded-full text-sm dynamic-hover-bg dynamic-text font-semibold" data-type="mood" onclick="setChartType('mood')">Настроение</button>
-                    <button class="chart-type-button py-2 px-4 rounded-full text-sm dynamic-hover-bg dynamic-text font-semibold" data-type="stress" onclick="setChartType('stress')">Стресс</button>
-                </div>
-                
-                <!-- Панель выбора периода -->
-                <div class="flex justify-center space-x-3 mb-6">
-                    <button class="chart-period-button active py-2 px-4 rounded-full text-sm dynamic-bg-light dynamic-text font-semibold" data-period="week" onclick="setChartPeriod('week')">Неделя</button>
-                    <button class="chart-period-button py-2 px-4 rounded-full text-sm dynamic-bg-light dynamic-text font-semibold" data-period="month" onclick="setChartPeriod('month')">Месяц</button>
-                    <button class="chart-period-button py-2 px-4 rounded-full text-sm dynamic-bg-light dynamic-text font-semibold" data-period="year" onclick="setChartPeriod('year')">Год</button>
+                <!-- Календарь -->
+                <div class="card-bg p-6 md:p-8 rounded-xl shadow-xl smooth-transition">
+                    <h2 class="text-2xl font-bold mb-4 border-b pb-2" style="color: var(--p-accent)">Календарь Настроения</h2>
+                    <div id="calendar-container" class="space-y-4">
+                        <div class="flex justify-between items-center mb-4">
+                            <button id="prev-month-btn" class="nav-btn px-3 py-1 bg-gray-200 dark:bg-slate-700 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-600 smooth-transition text-sm" style="color: var(--p-text)">&#9664;</button>
+                            <span id="current-calendar-month" class="text-lg font-semibold" style="color: var(--p-text)"></span>
+                            <button id="next-month-btn" class="nav-btn px-3 py-1 bg-gray-200 dark:bg-slate-700 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-600 smooth-transition text-sm" style="color: var(--p-text)">&#9654;</button>
+                        </div>
+                        <div id="calendar-grid"></div>
+                    </div>
                 </div>
 
-                <div id="chart-date-display" class="text-center text-gray-500 mb-4"></div>
-                
-                <!-- Контейнер для графика -->
-                <div id="mood-chart-container" class="relative">
-                    <canvas id="mainChart"></canvas>
+                <!-- Сводка Периода (НОВАЯ ФУНКЦИЯ) -->
+                <div class="card-bg p-6 md:p-8 rounded-xl shadow-xl smooth-transition">
+                    <h2 class="text-2xl font-bold mb-4 border-b pb-2" style="color: var(--p-accent)">Сводка Периода</h2>
+                    <div class="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-2 sm:space-y-0">
+                        <div id="time-nav-container" class="flex space-x-2 w-full sm:w-auto">
+                            <button id="prev-time-btn" class="px-3 py-1 bg-gray-200 dark:bg-slate-700 rounded-lg text-sm" style="color: var(--p-text)">&#9664;</button>
+                            <span id="current-range-display" class="px-3 py-1 bg-gray-100 dark:bg-slate-800 rounded-lg text-sm font-medium whitespace-nowrap" style="color: var(--p-text)"></span>
+                            <button id="next-time-btn" class="px-3 py-1 bg-gray-200 dark:bg-slate-700 rounded-lg text-sm" style="color: var(--p-text)">&#9654;</button>
+                        </div>
+
+                        <select id="time-range-select" class="p-2 border rounded-lg text-sm smooth-transition w-full sm:w-auto focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white dark:bg-slate-800" style="color: var(--p-text); border-color: var(--p-border);">
+                            <option value="week">Неделя</option>
+                            <option value="month">Месяц</option>
+                            <option value="year">Год</option>
+                            <option value="all">Все Время</option>
+                        </select>
+                    </div>
+
+                    <div id="period-summary" class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center mt-4">
+                        <div class="p-4 rounded-lg bg-indigo-50 dark:bg-slate-700 shadow-sm">
+                            <i data-lucide="smile" class="w-6 h-6 mx-auto mb-1 text-indigo-600"></i>
+                            <div class="text-2xl font-bold" id="avg-mood-summary">0.0</div>
+                            <div class="text-xs" style="color: var(--p-text-muted)">Ср. Настроение</div>
+                        </div>
+                        <div class="p-4 rounded-lg bg-pink-50 dark:bg-slate-700 shadow-sm">
+                            <i data-lucide="alert-triangle" class="w-6 h-6 mx-auto mb-1 text-pink-600"></i>
+                            <div class="text-2xl font-bold" id="max-stress-summary">0</div>
+                            <div class="text-xs" style="color: var(--p-text-muted)">Макс. Стресс</div>
+                        </div>
+                        <div class="p-4 rounded-lg bg-green-50 dark:bg-slate-700 shadow-sm">
+                            <i data-lucide="check-circle" class="w-6 h-6 mx-auto mb-1 text-green-600"></i>
+                            <div class="text-2xl font-bold" id="entries-count-summary">0</div>
+                            <div class="text-xs" style="color: var(--p-text-muted)">Записей</div>
+                        </div>
+                        <div class="p-4 rounded-lg bg-yellow-50 dark:bg-slate-700 shadow-sm">
+                            <i data-lucide="calendar" class="w-6 h-6 mx-auto mb-1 text-yellow-600"></i>
+                            <div class="text-2xl font-bold" id="days-logged-summary">0</div>
+                            <div class="text-xs" style="color: var(--p-text-muted)">Дней отслежено</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Графики -->
+                <div class="card-bg p-6 md:p-8 rounded-xl shadow-xl smooth-transition">
+                    <h2 class="text-2xl font-bold mb-4 border-b pb-2" style="color: var(--p-accent)">Анализ Тенденций</h2>
+
+                    <div class="mb-8">
+                        <h3 class="text-xl font-semibold mb-3" style="color: var(--p-text)">График Настроения</h3>
+                        <div id="mood-chart-container" class="chart-container">
+                            <canvas id="mood-chart-canvas"></canvas>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-xl font-semibold mb-3" style="color: var(--p-text)">График Стресса</h3>
+                        <div id="stress-chart-container" class="chart-container">
+                            <canvas id="stress-chart-canvas"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Список -->
+                <div class="card-bg p-6 md:p-8 rounded-xl shadow-xl smooth-transition">
+                    <h2 class="text-2xl font-bold mb-4 border-b pb-2" style="color: var(--p-accent)">Все Записи</h2>
+                    <ul id="logs-list" class="max-h-96 overflow-y-auto pr-2 space-y-3"></ul>
                 </div>
             </div>
         </div>
 
-        <!-- --- ВИД 4: НАСТРОЙКИ --- -->
-        <div id="view-settings" class="view-content hidden space-y-6">
-            <div class="bg-white p-6 rounded-2xl shadow-xl smooth-transition">
-                <h2 class="text-2xl font-bold mb-4 dynamic-text">Настройки Приложения</h2>
-                
-                <!-- Настройки темы - ДОБАВЛЕНО БОЛЬШЕ ЦВЕТОВ -->
-                <div class="mb-6 border p-4 rounded-xl dynamic-border border-opacity-30">
-                    <h3 class="text-xl font-semibold mb-3 text-gray-700">Тема (Цвет Акцента)</h3>
-                    <div class="flex flex-wrap gap-4">
-                        <button class="theme-option w-10 h-10 rounded-full border-2 border-gray-300" style="background-color: #B39DDB;" data-theme="Lavender" onclick="setTheme('Lavender')"></button>
-                        <button class="theme-option w-10 h-10 rounded-full border-2 border-gray-300" style="background-color: #80CBC4;" data-theme="Mint" onclick="setTheme('Mint')"></button>
-                        <button class="theme-option w-10 h-10 rounded-full border-2 border-gray-300" style="background-color: #FFAB91;" data-theme="Peach" onclick="setTheme('Peach')"></button>
-                        <button class="theme-option w-10 h-10 rounded-full border-2 border-gray-300" style="background-color: #A5D6A7;" data-theme="Sage" onclick="setTheme('Sage')"></button>
-                        <button class="theme-option w-10 h-10 rounded-full border-2 border-gray-300" style="background-color: #90CAF9;" data-theme="Sky" onclick="setTheme('Sky')"></button>
-                        <button class="theme-option w-10 h-10 rounded-full border-2 border-gray-300" style="background-color: #F48FB1;" data-theme="Pink" onclick="setTheme('Pink')"></button>
-                        <button class="theme-option w-10 h-10 rounded-full border-2 border-gray-300" style="background-color: #FFCC80;" data-theme="Apricot" onclick="setTheme('Apricot')"></button>
-                        <button class="theme-option w-10 h-10 rounded-full border-2 border-gray-300" style="background-color: #C5CAE9;" data-theme="Indigo" onclick="setTheme('Indigo')"></button>
-                    </div>
-                    <p class="text-xs text-gray-500 mt-3">Текущий выбор темы сделан более мягким и пастельным.</p>
+        <!-- 3. Вкладка "Анализ ИИ" -->
+        <div id="analysis" class="view-content">
+            <div class="space-y-8">
+                <div class="card-bg p-6 md:p-8 rounded-xl shadow-xl smooth-transition">
+                    <h2 class="text-2xl font-bold mb-4 border-b pb-2" style="color: var(--p-accent)">Настройка Анализа</h2>
+                    <label for="ai-instruction" class="block text-sm font-medium mb-1" style="color: var(--p-text-muted)">Системная Инструкция:</label>
+                    <textarea id="ai-instruction" rows="3" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-violet-500 smooth-transition outline-none" placeholder="Действуй как мудрый психолог..."></textarea>
                 </div>
 
-                <!-- Настройки AI -->
-                <div class="mb-6 border p-4 rounded-xl dynamic-border border-opacity-30">
-                    <h3 class="text-xl font-semibold mb-3 text-gray-700">Настройки Gemini AI</h3>
+                <div class="card-bg p-6 md:p-8 rounded-xl shadow-xl smooth-transition">
+                    <h2 class="text-2xl font-bold mb-4 border-b pb-2" style="color: var(--p-accent)">Генерация Отчета</h2>
+                    <button id="analyze-btn" class="w-full bg-violet-600 text-white font-semibold py-3 rounded-lg hover:bg-violet-700 smooth-transition shadow-md hover:shadow-lg mb-4">
+                        Получить Анализ от Gemini AI
+                    </button>
+                    <div id="analysis-output" class="mt-6 p-4 rounded-lg border min-h-[150px]" style="background-color: var(--p-bg); border-color: var(--p-border)">
+                        <p class="italic" style="color: var(--p-text-muted)">Нажмите кнопку для анализа...</p>
+                    </div>
+                    <div id="citation-container" class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/30 border-l-4 border-blue-400 text-sm text-blue-800 dark:text-blue-300 rounded-r-lg hidden">
+                        <p class="font-semibold mb-1">Источники:</p>
+                        <ul id="citations-list" class="list-disc list-inside"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Вкладка "Настройки" -->
+        <div id="settings" class="view-content">
+            <div class="card-bg p-6 md:p-8 rounded-xl shadow-xl smooth-transition space-y-8">
+                
+                <!-- Тема и Режим -->
+                <div>
+                    <h2 class="text-2xl font-bold mb-4 border-b pb-2" style="color: var(--p-accent)">Внешний Вид</h2>
+                    <div class="flex items-center justify-between mb-4">
+                        <span class="font-medium" style="color: var(--p-text)">Темная Тема</span>
+                        <button id="settings-theme-toggle" class="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-200 dark:bg-slate-700 smooth-transition">
+                            <span class="sr-only">Включить темную тему</span>
+                            <span id="theme-toggle-dot" class="inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-1 ring-slate-900/5 transition duration-200 ease-in-out translate-x-1 dark:translate-x-6"></span>
+                        </button>
+                    </div>
                     
-                    <div class="space-y-4">
-                        <!-- Ввод API Key -->
-                        <div>
-                            <label for="api-key-input" class="block text-gray-700 font-semibold mb-2">Ваш Gemini API Key</label>
-                            <input type="password" id="api-key-input" class="w-full p-3 border rounded-xl focus:ring-2 dynamic-border focus:ring-purple-300 smooth-transition" placeholder="Введите ключ (не будет сохранен в коде!)">
-                            <p class="text-xs text-gray-500 mt-1">Оставьте пустым для использования тестового API.</p>
-                        </div>
-                        
-                        <!-- Выбор длины отчета -->
-                        <div>
-                            <label for="report-length-select" class="block text-gray-700 font-semibold mb-2">Длина Отчета</label>
-                            <select id="report-length-select" class="w-full p-3 border rounded-xl focus:ring-2 dynamic-border focus:ring-purple-300 smooth-transition">
-                                <option value="Short">Короткий (1-2 абзаца)</option>
-                                <option value="Medium">Средний (3-4 абзаца)</option>
-                                <option value="Long">Подробный (4-6 абзацев)</option>
-                            </select>
-                        </div>
+                    <label class="block text-sm font-medium mb-2 mt-4" style="color: var(--p-text-muted)">Акцентная Тема:</label>
+                    <div id="theme-selector" class="flex flex-wrap gap-4">
+                        <button data-theme="lavender" class="theme-btn w-10 h-10 rounded-full border-2 border-violet-500 bg-violet-200" title="Лаванда"></button>
+                        <button data-theme="sea-breeze" class="theme-btn w-10 h-10 rounded-full border-2 border-transparent bg-cyan-300" title="Морской Бриз"></button>
+                        <button data-theme="forest" class="theme-btn w-10 h-10 rounded-full border-2 border-transparent bg-emerald-400" title="Лес"></button>
+                        <button data-theme="sunset" class="theme-btn w-10 h-10 rounded-full border-2 border-transparent bg-orange-400" title="Закат"></button>
+                        <!-- НОВЫЕ ТЕМЫ -->
+                        <button data-theme="deep-blue" class="theme-btn w-10 h-10 rounded-full border-2 border-transparent bg-blue-600" title="Глубокий Синий"></button>
+                        <button data-theme="warm-honey" class="theme-btn w-10 h-10 rounded-full border-2 border-transparent bg-yellow-600" title="Теплый Мед"></button>
+                        <button data-theme="mint" class="theme-btn w-10 h-10 rounded-full border-2 border-transparent bg-teal-500" title="Мятный"></button>
                     </div>
                 </div>
 
-                <!-- Кнопка сохранения настроек -->
-                <button id="save-settings-button" onclick="saveSettings()" class="mt-6 w-full py-3 rounded-xl text-white font-bold text-lg dynamic-bg hover:opacity-90 smooth-transition shadow-lg">
-                    Сохранить Настройки
-                </button>
-            </div>
-        </div>
-        
-        <!-- Модальное окно для заметок (большое, с прокруткой) - Z-index z-60 -->
-        <div id="notes-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 hidden items-center justify-center z-60 p-4 smooth-transition">
-            <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-lg w-full h-4/5 flex flex-col dynamic-border smooth-transition" style="border-width: 2px;">
-                <h3 class="text-xl font-bold mb-2 text-center dynamic-text">Все Записи за День</h3>
-                <p id="notes-modal-date" class="text-center mb-4 text-gray-600 font-medium"></p>
-                
-                <div id="daily-notes-list" class="flex-grow overflow-y-auto pr-2 space-y-3">
-                    <!-- Записи будут сгенерированы JavaScript -->
+                <!-- Настройка Цветов Шкалы -->
+                <div>
+                    <h2 class="text-2xl font-bold mb-4 border-b pb-2" style="color: var(--p-accent)">Персонализированная Шкала</h2>
+                    <p class="text-sm mb-4" style="color: var(--p-text-muted)">Выберите цвета для каждого уровня настроения:</p>
+                    <div class="grid grid-cols-5 gap-2 md:gap-4">
+                        <div class="flex flex-col items-center">
+                            <label class="text-xs mb-1 font-semibold">1</label>
+                            <input type="color" id="color-mood-1" class="w-10 h-10 rounded cursor-pointer border-none bg-transparent" value="#EF4444">
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <label class="text-xs mb-1 font-semibold">2</label>
+                            <input type="color" id="color-mood-2" class="w-10 h-10 rounded cursor-pointer border-none bg-transparent" value="#F97316">
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <label class="text-xs mb-1 font-semibold">3</label>
+                            <input type="color" id="color-mood-3" class="w-10 h-10 rounded cursor-pointer border-none bg-transparent" value="#EAB308">
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <label class="text-xs mb-1 font-semibold">4</label>
+                            <input type="color" id="color-mood-4" class="w-10 h-10 rounded cursor-pointer border-none bg-transparent" value="#22C55E">
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <label class="text-xs mb-1 font-semibold">5</label>
+                            <input type="color" id="color-mood-5" class="w-10 h-10 rounded cursor-pointer border-none bg-transparent" value="#3B82F6">
+                        </div>
+                    </div>
+                    <button id="reset-colors-btn" class="mt-4 text-xs underline text-gray-500 hover:text-gray-700">Сбросить цвета</button>
                 </div>
 
-                <button onclick="closeNotesModal()" class="mt-4 py-2 rounded-lg dynamic-bg text-white font-semibold hover:opacity-90 smooth-transition shadow-md">Закрыть</button>
+                <!-- Уведомления -->
+                <div>
+                    <h2 class="text-2xl font-bold mb-4 border-b pb-2" style="color: var(--p-accent)">Уведомления</h2>
+                    <div class="flex items-center justify-between mb-4">
+                        <span class="font-medium" style="color: var(--p-text)">Ежедневное напоминание</span>
+                        <button id="notify-toggle" class="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-200 dark:bg-slate-700 smooth-transition">
+                            <span id="notify-toggle-dot" class="inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-1 ring-slate-900/5 transition duration-200 ease-in-out translate-x-1"></span>
+                        </button>
+                    </div>
+                    <div id="notify-time-container" class="opacity-50 pointer-events-none smooth-transition">
+                        <label class="block text-sm font-medium mb-1" style="color: var(--p-text-muted)">Время напоминания:</label>
+                        <input type="time" id="notify-time" class="p-2 border rounded-lg text-sm bg-white dark:bg-slate-800" style="color: var(--p-text); border-color: var(--p-border);">
+                    </div>
+                    <p class="text-xs mt-2" style="color: var(--p-text-muted)">* Работает только при открытой вкладке браузера.</p>
+                </div>
+
+                <!-- API Key -->
+                <div>
+                    <h2 class="text-2xl font-bold mb-4 border-b pb-2" style="color: var(--p-accent)">Gemini API</h2>
+                    <label for="api-key-input" class="block text-sm font-medium mb-1" style="color: var(--p-text-muted)">API Key:</label>
+                    <input type="password" id="api-key-input" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-violet-500 smooth-transition outline-none">
+                </div>
+            </div>
+        </div>
+
+        <!-- Modals -->
+        <div id="message-box" class="fixed inset-0 bg-black bg-opacity-50 items-center justify-center p-4 hidden z-50">
+            <div class="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-2xl max-w-sm w-full smooth-transition transform scale-95 border dark:border-slate-700">
+                <h3 id="message-title" class="text-xl font-bold mb-3" style="color: var(--p-text)"></h3>
+                <p id="message-content" class="mb-4" style="color: var(--p-text-muted)"></p>
+                <button onclick="closeMessageBox()" class="w-full bg-violet-600 text-white font-semibold py-2 rounded-lg hover:bg-violet-700 smooth-transition">OK</button>
             </div>
         </div>
         
-        <!-- Модальное окно для подтверждения удаления -->
-        <div id="confirm-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 hidden items-center justify-center z-50 p-4 smooth-transition">
-            <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full smooth-transition">
-                <h3 class="text-lg font-bold mb-4 dynamic-text">Подтверждение Удаления</h3>
-                <p id="confirm-modal-text" class="mb-6 text-gray-700"></p>
+        <div id="confirm-box" class="fixed inset-0 bg-black bg-opacity-50 items-center justify-center p-4 hidden z-50">
+            <div class="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-2xl max-w-sm w-full smooth-transition transform scale-95 border dark:border-slate-700">
+                <h3 class="text-xl font-bold mb-3 text-red-600">Подтверждение</h3>
+                <p class="mb-4" style="color: var(--p-text)">Вы уверены, что хотите удалить эту запись?</p>
                 <div class="flex justify-end space-x-4">
-                    <button onclick="cancelAction()" class="py-2 px-4 rounded-lg bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300 smooth-transition">Отмена</button>
-                    <button id="confirm-delete-button" class="py-2 px-4 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 smooth-transition">Удалить</button>
+                    <button id="confirm-cancel" class="px-4 py-2 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-200 font-semibold rounded-lg hover:bg-gray-300 smooth-transition">Отмена</button>
+                    <button id="confirm-ok" class="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 smooth-transition">Удалить</button>
                 </div>
             </div>
         </div>
 
     </div>
 
-    <!-- Скрипт для инициализации и работы с данными -->
-    <script>
-        // --- Глобальные переменные UI и Данных ---
-        window.dailyLogs = []; 
-        let dailyAverages = {}; 
-        const STORAGE_KEY = 'dailyMoodLogs';
-        const THEME_STORAGE_KEY = 'moodDiaryTheme';
-        const GEMINI_API_KEY_STORAGE_KEY = 'userGeminiApiKey';
-        const GEMINI_SETTINGS_STORAGE_KEY = 'geminiSettings';
-        
-        let userProvidedApiKey = ""; 
-        let geminiSettings = {
-            reportLength: 'Medium',
-            model: 'gemini-2.5-flash-preview-09-2025'
-        };
+    <script type="module">
+        lucide.createIcons();
 
-        let currentMood = 3; 
-        let currentStress = 3; 
-        let currentMonth = new Date().getMonth(); 
-        let currentYear = new Date().getFullYear(); 
-        let currentChartPeriod = 'week';
-        let currentChartType = 'mood'; 
+        // --- Глобальные Переменные ---
+        let currentTheme = 'lavender';
+        let isDarkMode = false;
+        let moodColors = { 1: '#EF4444', 2: '#F97316', 3: '#EAB308', 4: '#22C55E', 5: '#3B82F6' };
+        let logs = [];
+        let moodChartInstance = null;
+        let stressChartInstance = null;
+        let aiSystemInstruction = '';
+        let apiKey = '';
+        let editingLogId = null;
+        let currentRange = 'week';
+        let weekOffset = 0; let monthOffset = 0; let yearOffset = 0;
+        let currentCalendarDate = new Date(); // Переменная для навигации календаря
+        let currentMood = 3; let currentStress = 3;
         
-        let mainChartInstance = null;
-        let audioContext = null;
-        let synth = null;
-        
-        const MOOD_LABELS = {
-            1: "Ужасно", 2: "Плохо", 3: "Нормально", 4: "Хорошо", 5: "Великолепно"
-        };
-        const STRESS_LABELS = { 
-            1: "Низкий", 2: "Спокойный", 3: "Умеренный", 4: "Высокий", 5: "Критический"
-        };
-        const MONTH_NAMES = [
-            "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
-            "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
-        ];
-        
-        // НОВЫЕ, БОЛЕЕ НЕЖНЫЕ ТЕМЫ!
-        const THEMES = {
-            'Lavender': { 
-                '--p-text': '#585098', 
-                '--p-accent': '#B39DDB',       
-                '--p-accent-light': '#EFE7FC' 
-            },
-            'Mint': { 
-                '--p-text': '#00695C', 
-                '--p-accent': '#80CBC4',       
-                '--p-accent-light': '#E0F2F1'
-            },
-            'Peach': { 
-                '--p-text': '#D84315', 
-                '--p-accent': '#FFAB91',       
-                '--p-accent-light': '#FBE9E7'
-            },
-            'Sage': { 
-                '--p-text': '#2E7D32', 
-                '--p-accent': '#A5D6A7',       
-                '--p-accent-light': '#E8F5E9'
-            },
-            // --- НОВЫЕ ТЕМЫ ---
-            'Sky': { 
-                '--p-text': '#1565C0', 
-                '--p-accent': '#90CAF9',       
-                '--p-accent-light': '#E3F2FD'
-            },
-            'Pink': { 
-                '--p-text': '#C2185B', 
-                '--p-accent': '#F48FB1',       
-                '--p-accent-light': '#FCE4EC'
-            },
-            'Apricot': { 
-                '--p-text': '#E65100', 
-                '--p-accent': '#FFCC80',       
-                '--p-accent-light': '#FFF3E0'
-            },
-            'Indigo': { 
-                '--p-text': '#303F9F', 
-                '--p-accent': '#C5CAE9',       
-                '--p-accent-light': '#E8EAF6'
-            }
-        };
+        // Уведомления
+        let notifyEnabled = false;
+        let notifyTime = '09:00';
+        let notificationInterval = null;
 
+        const modelName = 'gemini-2.5-flash-preview-09-2025';
+        const clickSynth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'sine' }, envelope: { attack: 0.005, decay: 0.01, sustain: 0.0, release: 0.05 } }).toDestination();
 
-        // --- Утилиты ---
-        
-        /** Инициализирует Tone.js (аудио) */
-        function initAudio() {
-            if (Tone.context.state !== 'running') {
-                Tone.context.resume();
-            }
-            if (!synth) {
-                synth = new Tone.Synth().toDestination();
-            }
-        }
-
-        /** Воспроизводит тихий звук "клика" */
-        function playClickSound() {
-            initAudio();
-            synth.triggerAttackRelease("C4", "32n", Tone.now(), 0.1); 
+        // --- Вспомогательные Функции ---
+        function playClick() { clickSynth.triggerAttackRelease("C5", "8n", Tone.now(), 0.1); }
+        function formatDate(date) { return date.toISOString().split('T')[0]; }
+        function formatTime(date) { return date.toTimeString().substring(0, 5); }
+        function parseDate(dateString) { 
+            const [y, m, d] = dateString.split('-').map(Number); 
+            // Use UTC to avoid timezone issues with date-only strings
+            return new Date(Date.UTC(y, m - 1, d)); 
         }
         
-        /** * Простой конвертер Markdown в HTML для базового форматирования.
-         * Поддерживает **жирный**, списки (* или -), и абзацы.
-         */
+        function showMessageBox(title, content) {
+            document.getElementById('message-title').textContent = title;
+            document.getElementById('message-content').textContent = content;
+            const el = document.getElementById('message-box'); el.classList.remove('hidden', 'flex'); el.classList.add('flex');
+            setTimeout(() => el.querySelector('div').classList.remove('scale-95'), 10);
+        }
+        window.closeMessageBox = function() {
+            const el = document.getElementById('message-box'); el.querySelector('div').classList.add('scale-95');
+            setTimeout(() => { el.classList.remove('flex'); el.classList.add('hidden'); }, 200);
+        }
+
+        window.showConfirmBox = function(onConfirm) {
+            const el = document.getElementById('confirm-box'); el.classList.remove('hidden', 'flex'); el.classList.add('flex');
+            setTimeout(() => el.querySelector('div').classList.remove('scale-95'), 10);
+            const okBtn = document.getElementById('confirm-ok'); const cancelBtn = document.getElementById('confirm-cancel');
+            
+            const cleanup = () => {
+                okBtn.removeEventListener('click', handleOk);
+                cancelBtn.removeEventListener('click', handleCancel);
+                el.querySelector('div').classList.add('scale-95');
+                setTimeout(() => { el.classList.remove('flex'); el.classList.add('hidden'); }, 200);
+            };
+            const handleOk = () => { onConfirm(); cleanup(); };
+            const handleCancel = () => { cleanup(); };
+            
+            okBtn.addEventListener('click', handleOk);
+            cancelBtn.addEventListener('click', handleCancel);
+        }
+
         function markdownToHtml(markdown) {
-            // 1. Замена жирного текста: **текст** или __текст__
-            let html = markdown.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
-
-            // 2. Обработка списков (* или - в начале строки)
-            // Ищем блоки списков (строки, начинающиеся с * или -)
-            const listRegex = /(\n|^)([*-]\s[^\n]+)+/g;
-            html = html.replace(listRegex, (match) => {
-                let listItems = match.trim().split('\n').map(line => {
-                    // Удаляем * или - и пробел
-                    const content = line.trim().substring(2).trim();
-                    return `<li>${content}</li>`;
+            let html = markdown.replace(/^### (.*$)/gim, '<h3>$1</h3>').replace(/^## (.*$)/gim, '<h2>$1</h2>');
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>');
+            
+            // Поддержка Таблиц (Базовая)
+            const tableRegex = /\|(.+)\|\n\|[-:| ]+\|\n((?:\|.*\|\n?)+)/g;
+            
+            html = html.replace(tableRegex, (match, headerRow, bodyRows) => {
+                const headers = headerRow.split('|').filter(cell => cell.trim() !== '').map(cell => `<th>${cell.trim()}</th>`).join('');
+                
+                const rows = bodyRows.trim().split('\n').map(row => {
+                    const cells = row.split('|').filter(cell => cell.trim() !== '').map(cell => `<td>${cell.trim()}</td>`).join('');
+                    return `<tr>${cells}</tr>`;
                 }).join('');
-                return `<ul>${listItems}</ul>`;
+                
+                return `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
             });
 
-            // 3. Замена двойных переносов строк на абзацы (<p>). 
-            // Это разбивает текст на абзацы, сохраняя одиночные переносы как <br>
-            html = html.split('\n\n').map(paragraph => {
-                if (paragraph.trim() === '') {
-                    return '';
-                }
-                // Не оборачиваем списки в <p>
-                if (paragraph.trim().startsWith('<ul>')) {
-                    return paragraph;
-                }
-                // Заменяем одиночные переносы строки на <br> внутри абзацев
-                let content = paragraph.trim().replace(/\n/g, '<br>');
-                return `<p>${content}</p>`;
-            }).join('');
-
-            return html;
+            return html.split(/\n\s*\n/g).map(p => (p.startsWith('<') || p.startsWith('|')) ? p : `<p>${p.replace(/\n/g, '<br>')}</p>`).join('')
+                   .replace(/^\* (.*$)/gim, '<li>$1</li>').replace(/((?:<li>.*?<\/li>)+)/gs, '<ul>$1</ul>');
         }
 
+        // --- Основная Логика ---
 
-        /** Устанавливает цветовую тему */
-        function setTheme(themeName) {
-            const theme = THEMES[themeName] || THEMES['Lavender'];
+        function loadSettings() {
+            currentTheme = localStorage.getItem('appTheme') || 'lavender';
+            isDarkMode = localStorage.getItem('isDarkMode') === 'true';
+            apiKey = localStorage.getItem('geminiApiKey') || '';
+            aiSystemInstruction = localStorage.getItem('aiSystemInstruction') || '';
+            const savedColors = localStorage.getItem('moodColors');
+            if (savedColors) moodColors = JSON.parse(savedColors);
+            
+            notifyEnabled = localStorage.getItem('notifyEnabled') === 'true';
+            notifyTime = localStorage.getItem('notifyTime') || '20:00';
+
+            // Применение настроек
+            applyTheme(currentTheme);
+            applyDarkMode(isDarkMode);
+            applyMoodColors();
+            updateNotifyUI();
+            checkNotificationPermission();
+
+            document.getElementById('api-key-input').value = apiKey;
+            document.getElementById('ai-instruction').value = aiSystemInstruction;
+            
+            // Заполнение инпутов цветов
+            for(let i=1; i<=5; i++) document.getElementById(`color-mood-${i}`).value = moodColors[i];
+        }
+        
+        function saveSettings() {
+            apiKey = document.getElementById('api-key-input').value.trim();
+            aiSystemInstruction = document.getElementById('ai-instruction').value.trim();
+            localStorage.setItem('geminiApiKey', apiKey);
+            localStorage.setItem('aiSystemInstruction', aiSystemInstruction);
+            // Цвета сохраняются сразу при изменении
+        }
+
+        // --- Темы и Цвета ---
+
+        function applyTheme(themeName) {
+            const themes = {
+                'lavender': { '--p-accent': '#8B5CF6', '--p-accent-light': '#EDE9FE' },
+                'sea-breeze': { '--p-accent': '#06B6D4', '--p-accent-light': '#CFFAFE' },
+                'sunset': { '--p-accent': '#F59E0B', '--p-accent-light': '#FEF3C7' },
+                'forest': { '--p-accent': '#10B981', '--p-accent-light': '#D1FAE5' },
+                // НОВЫЕ ТЕМЫ
+                'deep-blue': { '--p-accent': '#3B82F6', '--p-accent-light': '#DBEAFE' },
+                'warm-honey': { '--p-accent': '#FBBF24', '--p-accent-light': '#FFFBEB' },
+                'mint': { '--p-accent': '#14B8A6', '--p-accent-light': '#CCFBF1' }
+            };
+            const theme = themes[themeName];
             const root = document.documentElement;
             
-            for (const [key, value] of Object.entries(theme)) {
-                root.style.setProperty(key, value);
-            }
-            localStorage.setItem(THEME_STORAGE_KEY, themeName);
+            const isDark = document.documentElement.classList.contains('dark-mode');
             
-            // Обновляем круги в настройках
-            document.querySelectorAll('.theme-option').forEach(btn => {
-                btn.classList.remove('border-4', 'border-black');
+            root.style.setProperty('--p-accent', theme['--p-accent']);
+            // В темной теме accent-light должен быть темнее
+            if (!isDark) root.style.setProperty('--p-accent-light', theme['--p-accent-light']);
+            
+            document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('border-4', 'border-gray-500', 'border-transparent'));
+            const activeBtn = document.querySelector(`.theme-btn[data-theme="${themeName}"]`);
+            if(activeBtn) activeBtn.classList.add('border-4', 'border-gray-500');
+            
+            currentTheme = themeName;
+            localStorage.setItem('appTheme', themeName);
+            renderChart(); // Обновить цвета графика
+        }
+
+        function applyDarkMode(enabled) {
+            const body = document.body;
+            const toggleDot = document.getElementById('theme-toggle-dot');
+            const icons = document.getElementById('global-theme-toggle').children;
+
+            if (enabled) {
+                body.classList.add('dark-mode');
+                document.documentElement.classList.add('dark-mode');
+                toggleDot.classList.add('translate-x-6');
+                toggleDot.classList.remove('translate-x-1');
+                icons[0].classList.add('hidden'); icons[1].classList.remove('hidden');
+                // Корректировка accent-light для темной темы
+                document.documentElement.style.setProperty('--p-accent-light', '#1e293b');
+            } else {
+                body.classList.remove('dark-mode');
+                document.documentElement.classList.remove('dark-mode');
+                toggleDot.classList.add('translate-x-1');
+                toggleDot.classList.remove('translate-x-6');
+                icons[1].classList.add('hidden'); icons[0].classList.remove('hidden');
+                // Возврат accent-light текущей темы
+                applyTheme(currentTheme);
+            }
+            isDarkMode = enabled;
+            localStorage.setItem('isDarkMode', enabled);
+        }
+
+        function applyMoodColors() {
+            // 1. Генерация кнопок настроения
+            const container = document.getElementById('mood-selector');
+            container.innerHTML = '';
+            const titles = ['Ужасно', 'Плохо', 'Нормально', 'Хорошо', 'Отлично'];
+            
+            for(let i=1; i<=5; i++) {
+                const color = moodColors[i];
+                const btn = document.createElement('button');
+                btn.className = `mood-btn flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full aspect-square smooth-transition`;
+                btn.dataset.mood = i;
+                btn.title = titles[i-1];
+                btn.textContent = i;
+                
+                btn.style.color = color;
+                btn.style.border = `2px solid ${color}40`;
+                btn.style.backgroundColor = `${color}15`;
+                
+                container.appendChild(btn);
+            }
+            
+            // 2. Обновление линейки визуализации
+            document.querySelectorAll('.mood-scale-segment').forEach(segment => {
+                const mood = segment.dataset.mood;
+                segment.style.backgroundColor = moodColors[mood];
             });
-            // Убедимся, что выбранная кнопка существует, прежде чем добавлять класс
-            const selectedBtn = document.querySelector(`.theme-option[data-theme="${themeName}"]`);
-            if (selectedBtn) {
-                selectedBtn.classList.add('border-4', 'border-black');
+
+            if (logs.length > 0) {
+                renderCalendar(currentCalendarDate);
+                renderChart();
             }
-            
-            if (mainChartInstance) {
-                updateChartColors();
-            }
+            updateMoodBtnStyles(); // Обновить стили активной кнопки
+        }
+        
+        window.updateMoodBtnStyles = function() {
+            document.querySelectorAll('.mood-btn').forEach(btn => {
+                const mood = parseInt(btn.dataset.mood);
+                const color = moodColors[mood];
+                if (parseInt(currentMood) === mood) {
+                    btn.style.boxShadow = `0 0 0 4px ${color}30, 0 0 0 6px ${color}`;
+                    btn.style.transform = 'scale(1.1)';
+                } else {
+                    btn.style.boxShadow = 'none';
+                    btn.style.transform = 'scale(1)';
+                }
+            });
         }
 
-        /** Загрузка настроек при старте */
-        function loadSettings() {
-            const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) || 'Lavender'; // Default to softer Lavender
-            setTheme(savedTheme);
+        // --- Уведомления ---
+        
+        function updateNotifyUI() {
+            const dot = document.getElementById('notify-toggle-dot');
+            const timeContainer = document.getElementById('notify-time-container');
+            const timeInput = document.getElementById('notify-time');
             
-            const savedApiKey = localStorage.getItem(GEMINI_API_KEY_STORAGE_KEY);
-            if (savedApiKey) {
-                userProvidedApiKey = savedApiKey;
+            timeInput.value = notifyTime;
+            
+            if (notifyEnabled) {
+                dot.classList.add('translate-x-6'); dot.classList.remove('translate-x-1');
+                timeContainer.classList.remove('opacity-50', 'pointer-events-none');
+                startNotificationTimer();
+            } else {
+                dot.classList.add('translate-x-1'); dot.classList.remove('translate-x-6');
+                timeContainer.classList.add('opacity-50', 'pointer-events-none');
+                stopNotificationTimer();
             }
-            
-            const savedSettings = localStorage.getItem(GEMINI_SETTINGS_STORAGE_KEY);
-            if (savedSettings) {
-                geminiSettings = JSON.parse(savedSettings);
-            }
-            
-            // Установка значений в форме настроек
-            document.getElementById('api-key-input').value = userProvidedApiKey ? '***API KEY SET***' : '';
-            document.getElementById('report-length-select').value = geminiSettings.reportLength;
         }
-
-        /** Сохранение настроек из формы */
-        function saveSettings() {
-            playClickSound();
-            const apiKeyInput = document.getElementById('api-key-input').value.trim();
-            const reportLength = document.getElementById('report-length-select').value;
-            
-            if (apiKeyInput && apiKeyInput !== '***API KEY SET***') {
-                userProvidedApiKey = apiKeyInput;
-                localStorage.setItem(GEMINI_API_KEY_STORAGE_KEY, userProvidedApiKey);
-            } else if (apiKeyInput === '') {
-                userProvidedApiKey = '';
-                localStorage.removeItem(GEMINI_API_KEY_STORAGE_KEY);
-            }
-            
-            geminiSettings.reportLength = reportLength;
-            localStorage.setItem(GEMINI_SETTINGS_STORAGE_KEY, JSON.stringify(geminiSettings));
-            
-            showMessage('Настройки сохранены!', 'bg-green-100 text-green-800');
-        }
-
-        /** Загрузка данных из LocalStorage */
-        function loadData() {
-            const data = localStorage.getItem(STORAGE_KEY);
-            if (data) {
-                dailyLogs = JSON.parse(data);
-                // Заполняем stress: 3 для старых записей, чтобы избежать NaN
-                dailyLogs.forEach(log => {
-                    if (log.stress === undefined) {
-                        log.stress = 3;
+        
+        function checkNotificationPermission() {
+            if (notifyEnabled && Notification.permission !== 'granted') {
+                Notification.requestPermission().then(permission => {
+                    if (permission !== 'granted') {
+                        notifyEnabled = false;
+                        updateNotifyUI();
+                        showMessageBox('Разрешение', 'Для работы напоминаний требуется разрешение на уведомления.');
                     }
                 });
-            } else {
-                dailyLogs = [];
             }
-            processDailyAverages();
         }
 
-        /** Сохранение данных в LocalStorage */
-        function saveData() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(dailyLogs));
-        }
-
-        /** Обработка средних значений настроения и стресса по дням */
-        function processDailyAverages() {
-            const dailyData = dailyLogs.reduce((acc, log) => {
-                const dateKey = log.date;
-                if (!acc[dateKey]) {
-                    acc[dateKey] = { totalMood: 0, count: 0, totalStress: 0 }; 
+        function startNotificationTimer() {
+            if (notificationInterval) clearInterval(notificationInterval);
+            notificationInterval = setInterval(() => {
+                const now = new Date();
+                const currentTime = now.toTimeString().substring(0, 5);
+                if (currentTime === notifyTime && now.getSeconds() < 10) {
+                    new Notification("Дневник Настроения", { 
+                        body: "Время записать, как прошел ваш день!",
+                        icon: "https://placehold.co/128x128/8B5CF6/ffffff?text=Mood"
+                    });
                 }
-                acc[dateKey].totalMood += log.mood;
-                acc[dateKey].totalStress += (log.stress || 3); // Защита от старых данных
-                acc[dateKey].count++;
-                return acc;
-            }, {});
-
-            dailyAverages = {};
-            for (const dateKey in dailyData) {
-                dailyAverages[dateKey] = {
-                    avgMood: dailyData[dateKey].totalMood / dailyData[dateKey].count,
-                    avgStress: dailyData[dateKey].totalStress / dailyData[dateKey].count,
-                    count: dailyData[dateKey].count
-                };
-            }
-        }
-        
-        /** Форматирование даты в YYYY-MM-DD */
-        function formatDate(date) {
-            const y = date.getFullYear();
-            const m = String(date.getMonth() + 1).padStart(2, '0');
-            const d = String(date.getDate()).padStart(2, '0');
-            return `${y}-${m}-${d}`;
-        }
-        
-        /** Форматирование даты в читаемый вид */
-        function formatReadableDate(dateKey) {
-            if (!dateKey) return '';
-            const parts = dateKey.split('-');
-            const date = new Date(parts[0], parts[1] - 1, parts[2]);
-            return `${date.getDate()} ${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()} г.`;
+            }, 10000); // Проверка каждые 10 сек
         }
 
-        /** Отображение сообщения */
-        function showMessage(text, classes) {
-            const box = document.getElementById('message-box');
-            box.textContent = text;
-            box.className = `mt-4 text-center p-3 rounded-lg ${classes} smooth-transition`;
-            box.classList.remove('hidden');
-            setTimeout(() => {
-                box.classList.add('hidden');
-            }, 3000);
+        function stopNotificationTimer() {
+            if (notificationInterval) clearInterval(notificationInterval);
         }
 
-        // --- Логика UI ---
 
-        /** Переключение вкладок */
-        function switchView(viewId) {
-            playClickSound();
-            
-            // Анимация: скрываем и показываем
-            document.querySelectorAll('.view-content').forEach(view => {
-                view.classList.remove('active-view');
-                view.classList.add('hidden');
+        // --- Логика Данных ---
+
+        function loadData() {
+            const stored = localStorage.getItem('moodLogs');
+            logs = stored ? JSON.parse(stored) : [];
+            // Сортировка по дате И времени
+            logs.sort((a, b) => {
+                const dtA = new Date(a.date + 'T' + (a.exactTime || '00:00'));
+                const dtB = new Date(b.date + 'T' + (b.exactTime || '00:00'));
+                return dtA - dtB;
             });
-
-            document.querySelectorAll('.tab-button').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            document.querySelector(`.tab-button[data-view="${viewId}"]`).classList.add('active');
-
-            const nextView = document.getElementById(`view-${viewId}`);
-            nextView.classList.remove('hidden');
-            setTimeout(() => {
-                nextView.classList.add('active-view'); 
-            }, 10); 
-
-            if (viewId === 'calendar') {
-                renderCalendar();
-            } else if (viewId === 'charts') {
-                processDailyAverages();
-                updateCharts();
-            } else if (viewId === 'input') {
-                 // Установка текущей даты при переключении
-                document.getElementById('log-date').value = formatDate(new Date()); 
-            }
+            renderLogs(); renderChart(); renderCalendar(currentCalendarDate);
+            updatePeriodSummary(); // Обновление сводки
         }
 
-        /** Выбор настроения */
-        function selectMood(mood) {
-            playClickSound();
-            currentMood = mood;
-            document.querySelectorAll('.rating-option').forEach(option => {
-                option.classList.remove('selected');
-            });
-            document.querySelector(`.rating-option[data-mood="${mood}"]`).classList.add('selected');
-            document.getElementById('mood-label').textContent = MOOD_LABELS[mood];
-        }
-
-        /** Выбор стресса */
-        function selectStress(stress) {
-            playClickSound();
-            currentStress = stress;
-            document.querySelectorAll('.stress-option').forEach(option => {
-                option.classList.remove('selected');
-            });
-            document.querySelector(`.stress-option[data-stress="${stress}"]`).classList.add('selected');
-            document.getElementById('stress-label').textContent = STRESS_LABELS[stress];
-        }
-
-        /** Сохранение записи */
         function saveLog() {
-            playClickSound();
-            const notes = document.getElementById('mood-notes').value.trim();
-            const dateInput = document.getElementById('log-date').value; 
+            playClick();
+            const date = document.getElementById('log-date').value;
+            const time = document.getElementById('log-time').value;
+            const note = document.getElementById('log-note').value.trim();
             
-            if (notes.length < 5) {
-                showMessage('Пожалуйста, добавьте более подробное описание (минимум 5 символов).', 'bg-red-100 text-red-800');
-                return;
-            }
+            if (!date || !time) { showMessageBox("Ошибка", "Укажите дату и время."); return; }
 
-            let logDate = new Date();
-            if (dateInput) {
-                const parts = dateInput.split('-');
-                logDate = new Date(parts[0], parts[1] - 1, parts[2]); 
-            }
-            
-            const dateKey = formatDate(logDate);
-            const now = new Date();
-            const timeKey = now.toTimeString().split(' ')[0].substring(0, 5); 
-
+            const logId = editingLogId || Date.now();
             const newLog = {
-                id: Date.now(),
-                date: dateKey,
-                time: timeKey,
+                id: logId,
+                date: date,
+                exactTime: time, 
+                time: time,
                 mood: currentMood,
-                stress: currentStress, 
-                notes: notes,
-                timestamp: now.getTime()
+                stress: currentStress,
+                note: note
             };
 
-            dailyLogs.push(newLog);
-            saveData();
-            processDailyAverages();
-            
-            showMessage(`Запись за ${dateKey} успешно сохранена!`, 'bg-blue-100 text-blue-800');
-            
-            // Очистка формы
-            document.getElementById('mood-notes').value = '';
-            document.getElementById('log-date').value = formatDate(new Date()); 
-            selectMood(3); 
-            selectStress(3); 
-            
-            generateAnalysis(newLog);
+            const idx = logs.findIndex(l => l.id === logId);
+            if (idx !== -1) logs[idx] = { ...logs[idx], ...newLog };
+            else logs.push(newLog);
+
+            localStorage.setItem('moodLogs', JSON.stringify(logs));
+            loadData();
+            resetForm();
+            showMessageBox("Успех", "Запись сохранена.");
         }
         
-        /** Открытие модального окна заметок */
-        function openNotesModal(dateKey) {
-            playClickSound();
-            const logsForDay = dailyLogs.filter(log => log.date === dateKey)
-                                        .sort((a, b) => b.timestamp - a.timestamp); 
+        function resetForm() {
+            editingLogId = null;
+            document.getElementById('entry-title').textContent = 'Ежедневная Запись';
+            document.getElementById('save-log-btn').textContent = 'Сохранить Запись';
+            document.getElementById('cancel-edit-btn').classList.add('hidden');
+            document.getElementById('log-note').value = '';
             
-            document.getElementById('notes-modal-date').textContent = formatReadableDate(dateKey);
-            const list = document.getElementById('daily-notes-list');
-            list.innerHTML = '';
-
-            logsForDay.forEach(log => {
-                const moodLabel = MOOD_LABELS[log.mood];
-                const stressLabel = STRESS_LABELS[log.stress || 3];
-                const noteElement = document.createElement('div');
-                
-                noteElement.className = 'bg-white p-4 rounded-xl shadow-md border border-gray-100 smooth-transition';
-                noteElement.innerHTML = `
-                    <div class="flex justify-between items-center mb-2 border-b pb-1">
-                        <div>
-                            <span class="text-sm font-bold dynamic-text block">Настроение: ${moodLabel} (${log.mood}/5)</span>
-                            <span class="text-xs font-semibold text-gray-600 block">Стресс: ${stressLabel} (${log.stress || 3}/5)</span>
-                        </div>
-                        <span class="text-xs text-gray-500">${log.time}</span>
-                    </div>
-                    <!-- Контейнер для текста заметки с ограничением по высоте -->
-                    <div id="note-text-${log.id}" class="note-content text-gray-700 text-sm overflow-hidden smooth-transition" style="max-height: 80px;">
-                        <p class="mb-0">${log.notes}</p>
-                    </div>
-                    <!-- Кнопка "Показать полностью" -->
-                    <button data-id="${log.id}" onclick="toggleNoteExpansion(${log.id})" class="show-more-btn mt-1 text-xs text-gray-500 hover:text-gray-700 smooth-transition font-semibold">
-                        ... Показать полностью
-                    </button>
-                    <!-- Кнопка удаления -->
-                    <button data-id="${log.id}" onclick="showConfirmDelete(this, '${dateKey}')" class="mt-2 text-xs text-red-500 hover:text-red-700 smooth-transition block">
-                        Удалить Запись
-                    </button>
-                `;
-                list.appendChild(noteElement);
-                
-                // Проверяем, нужно ли показывать кнопку "Показать полностью"
-                // Если высота скролла больше, чем установленный max-height, показываем кнопку
-                const contentDiv = document.getElementById(`note-text-${log.id}`);
-                const showMoreBtn = contentDiv.nextElementSibling;
-                if (contentDiv.scrollHeight <= 80) {
-                    showMoreBtn.classList.add('hidden');
-                }
-            });
-
-            document.getElementById('notes-modal').classList.remove('hidden', 'opacity-0');
-            document.getElementById('notes-modal').classList.add('flex', 'opacity-100');
+            const now = new Date();
+            document.getElementById('log-date').value = formatDate(now);
+            document.getElementById('log-time').value = formatTime(now);
+            
+            selectMood(3); selectStress(3);
         }
         
-        /** Раскрывает или сворачивает текст заметки. */
-        function toggleNoteExpansion(logId) {
-            playClickSound();
-            const content = document.getElementById(`note-text-${logId}`);
-            const button = content.nextElementSibling; 
-            
-            if (content.style.maxHeight === '80px') {
-                content.style.maxHeight = content.scrollHeight + 'px';
-                button.textContent = '... Свернуть';
-            } else {
-                content.style.maxHeight = '80px';
-                button.textContent = '... Показать полностью';
-            }
-        }
-        
-        /** Закрытие модального окна заметок */
-        function closeNotesModal() {
-            playClickSound();
-            document.getElementById('notes-modal').classList.add('hidden', 'opacity-0');
-            document.getElementById('notes-modal').classList.remove('flex', 'opacity-100');
-            renderCalendar(); 
-        }
-
-        /** Показ модального окна подтверждения удаления */
-        function showConfirmDelete(button, dateKey) {
-            const logId = parseInt(button.getAttribute('data-id'));
-            const log = dailyLogs.find(l => l.id === logId);
-
+        window.editNote = function(id) {
+            const log = logs.find(l => l.id === id);
             if (!log) return;
-
-            document.getElementById('confirm-modal-text').textContent = 
-                `Вы уверены, что хотите удалить запись (Настроение: ${log.mood}/5, Стресс: ${log.stress || 3}/5) за ${log.date} ${log.time}?`;
-
-            const confirmButton = document.getElementById('confirm-delete-button');
-            confirmButton.onclick = () => deleteLog(logId, dateKey);
-
-            document.getElementById('confirm-modal').classList.remove('hidden');
-        }
-
-        /** Отмена действия (закрытие модального окна подтверждения) */
-        function cancelAction() {
-            playClickSound();
-            document.getElementById('confirm-modal').classList.add('hidden');
-        }
-
-        /** Удаление записи */
-        function deleteLog(logId, dateKey) {
-            playClickSound();
-            dailyLogs = dailyLogs.filter(log => log.id !== logId);
-            saveData();
-            processDailyAverages();
+            document.querySelector('.tab-btn[data-target="log-entry"]').click();
             
-            document.getElementById('confirm-modal').classList.add('hidden');
+            editingLogId = id;
+            document.getElementById('entry-title').textContent = 'Редактирование';
+            document.getElementById('save-log-btn').textContent = 'Обновить';
+            document.getElementById('cancel-edit-btn').classList.remove('hidden');
+            
+            document.getElementById('log-date').value = log.date;
+            document.getElementById('log-time').value = log.exactTime || log.time || '12:00';
+            document.getElementById('log-note').value = log.note;
+            selectMood(log.mood); selectStress(log.stress);
+        }
 
-            if (dailyLogs.filter(log => log.date === dateKey).length > 0) {
-                openNotesModal(dateKey); // Повторное открытие для обновления списка
-            } else {
-                closeNotesModal(); 
-                renderCalendar();
-            }
+        window.deleteNote = function(id) {
+            showConfirmBox(() => {
+                logs = logs.filter(l => l.id !== id);
+                localStorage.setItem('moodLogs', JSON.stringify(logs));
+                loadData();
+            });
         }
         
-        // --- Логика Календаря ---
+        window.selectMood = function(mood) {
+            currentMood = mood;
+            updateMoodBtnStyles();
+            playClick();
+        }
+        window.selectStress = function(stress) {
+            currentStress = stress;
+            document.querySelectorAll('.stress-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`.stress-btn[data-stress="${stress}"]`)?.classList.add('active');
+            playClick();
+        }
 
-        /** Рендеринг календаря */
-        function renderCalendar() {
-            document.getElementById('current-month-year').textContent = 
-                `${MONTH_NAMES[currentMonth]} ${currentYear}`;
-            
-            const calendarGrid = document.getElementById('calendar-grid');
-            calendarGrid.innerHTML = '';
-            
-            const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
-            let startDay = firstDayOfMonth.getDay(); 
-            startDay = startDay === 0 ? 6 : startDay - 1;
-            
-            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-            const todayKey = formatDate(new Date());
+        // --- Визуализация ---
 
-            for (let i = 0; i < startDay; i++) {
-                const emptyCell = document.createElement('div');
-                emptyCell.className = 'day-cell text-gray-400';
-                calendarGrid.appendChild(emptyCell);
-            }
-
-            for (let day = 1; day <= daysInMonth; day++) {
-                const date = new Date(currentYear, currentMonth, day);
-                const dateKey = formatDate(date);
-                const avgData = dailyAverages[dateKey];
+        function renderCalendar(targetDate) {
+            const year = targetDate.getFullYear(); 
+            const month = targetDate.getMonth();
+            document.getElementById('current-calendar-month').textContent = targetDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+            
+            const firstDay = new Date(year, month, 1).getDay(); 
+            const startOffset = (firstDay + 6) % 7; 
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            let html = `<div class="grid grid-cols-7 text-center font-bold text-xs mb-2 text-gray-500">
+                <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div class="text-red-400">Сб</div><div class="text-red-400">Вс</div></div>
+                <div class="grid grid-cols-7 gap-1">`;
+            
+            for(let i=0; i<startOffset; i++) html += `<div></div>`;
+            
+            for(let d=1; d<=daysInMonth; d++) {
+                const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const dayLogs = logs.filter(l => l.date === dateStr);
                 
-                const cell = document.createElement('div');
-                cell.textContent = day;
-                cell.className = 'day-cell smooth-transition';
-                cell.setAttribute('data-date', dateKey);
-
-                if (avgData !== undefined) {
-                    cell.onclick = () => openNotesModal(dateKey);
-
-                    // Цветовая индикация на основе СРЕДНЕГО НАСТРОЕНИЯ
-                    const color = getColorForMood(avgData.avgMood);
-                    cell.style.backgroundColor = color.light;
-                    cell.style.color = color.dark;
-                    cell.style.fontWeight = '700';
-                    cell.classList.add('has-data');
-                    
-                    // Добавляем средний балл как всплывающую подсказку
-                    cell.setAttribute('title', 
-                        `Настроение: ${avgData.avgMood.toFixed(1)}/5\nСтресс: ${avgData.avgStress.toFixed(1)}/5`);
-                } else {
-                    cell.classList.add('bg-white', 'text-gray-700', 'cursor-default');
-                    cell.onclick = () => showMessage('Нет записей за этот день.', 'bg-yellow-100 text-yellow-800');
+                let bgStyle = 'background-color: transparent; border: 1px solid var(--p-border);';
+                let content = `<span style="color: var(--p-text)">${d}</span>`;
+                
+                if (dayLogs.length > 0) {
+                    const avgMood = Math.round(dayLogs.reduce((s, l) => s + l.mood, 0) / dayLogs.length);
+                    const color = moodColors[avgMood];
+                    // Используем кастомный цвет с прозрачностью для фона
+                    bgStyle = `background-color: ${color}30; border: 1px solid ${color}; color: ${color}; font-weight: bold;`;
+                    content = `<span>${d}</span><span class="block text-[10px] opacity-80">${avgMood}/5</span>`;
                 }
                 
-                if (dateKey === todayKey) {
-                    cell.classList.add('is-today');
-                }
-
-
-                calendarGrid.appendChild(cell);
+                // Подсветка сегодня
+                const isToday = dateStr === formatDate(new Date());
+                const todayClass = isToday ? 'ring-2 ring-violet-500' : '';
+                
+                html += `<div class="calendar-day-cell p-1 h-12 rounded flex flex-col items-center justify-center ${todayClass}" 
+                        style="${bgStyle}" onclick="promptToCreateLog('${dateStr}')">${content}</div>`;
             }
-            renderMonthlyReport();
+            html += `</div>`;
+            document.getElementById('calendar-grid').innerHTML = html;
         }
+        
+        // --- Сводка Периода (НОВАЯ ФУНКЦИЯ) ---
+        function updatePeriodSummary() {
+            let filteredLogs = [];
+            const now = new Date();
+            let dateRange = { start: null, end: null };
 
-        /** Смена месяца */
-        function changeMonth(direction) {
-            playClickSound();
-            currentMonth += direction;
-            if (currentMonth > 11) {
-                currentMonth = 0;
-                currentYear++;
-            } else if (currentMonth < 0) {
-                currentMonth = 11;
-                currentYear--;
+            if (currentRange === 'week') {
+                let currentWeekStart = new Date(now);
+                const day = currentWeekStart.getDay() || 7; 
+                if (day !== 1) currentWeekStart.setHours(-24 * (day - 1));
+                else currentWeekStart.setHours(0,0,0,0);
+                
+                currentWeekStart.setDate(currentWeekStart.getDate() + (weekOffset * 7));
+                
+                dateRange.start = formatDate(currentWeekStart);
+                const weekEnd = new Date(currentWeekStart);
+                weekEnd.setDate(weekEnd.getDate() + 6);
+                dateRange.end = formatDate(weekEnd);
+
+            } else if (currentRange === 'month') {
+                let targetMonth = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+                const daysInMonth = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0).getDate();
+                
+                dateRange.start = formatDate(targetMonth);
+                const monthEnd = new Date(targetMonth);
+                monthEnd.setDate(daysInMonth);
+                dateRange.end = formatDate(monthEnd);
+
+            } else if (currentRange === 'year') {
+                let targetYear = now.getFullYear() + yearOffset;
+                
+                dateRange.start = `${targetYear}-01-01`;
+                dateRange.end = `${targetYear}-12-31`;
+
+            } else { // All time
+                filteredLogs = logs;
             }
-            renderCalendar();
-        }
-
-        /** Получение цвета в зависимости от НАСТРОЕНИЯ */
-        function getColorForMood(mood) {
-            // Используем мягкие, нежные цвета
-            if (mood >= 4.5) return { light: '#C8E6C9', dark: '#2E7D32' }; // Green (Sage-like)
-            if (mood >= 3.5) return { light: '#FFFDE7', dark: '#F9A825' }; // Light Yellow
-            if (mood >= 2.5) return { light: '#EFE7FC', dark: '#585098' }; // Lavender (Neutral/Theme)
-            if (mood >= 1.5) return { light: '#FBE9E7', dark: '#D84315' }; // Peach (Orange)
-            return { light: '#FFCDD2', dark: '#C62828' }; // Soft Red
-        }
-
-        /** Рендеринг отчета за месяц */
-        function renderMonthlyReport() {
-            const logsInMonth = dailyLogs.filter(log => {
-                const date = new Date(log.date);
-                return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-            });
-
-            const count = logsInMonth.length;
             
-            let averageMood = 'Н/Д';
-            let averageStress = 'Н/Д';
-
-            if (count > 0) {
-                const totalMood = logsInMonth.reduce((sum, log) => sum + log.mood, 0);
-                const totalStress = logsInMonth.reduce((sum, log) => sum + (log.stress || 3), 0);
-
-                averageMood = (totalMood / count).toFixed(2);
-                averageStress = (totalStress / count).toFixed(2);
+            if (dateRange.start && dateRange.end) {
+                filteredLogs = logs.filter(log => log.date >= dateRange.start && log.date <= dateRange.end);
             }
-
-
-            document.getElementById('monthly-average-mood').textContent = averageMood;
-            document.getElementById('monthly-average-stress').textContent = averageStress;
-            document.getElementById('monthly-count').textContent = count;
-
-            const reportOutput = document.getElementById('monthly-report-ai-output');
-            if (count > 0) {
-                reportOutput.classList.remove('hidden');
-            } else {
-                reportOutput.classList.add('hidden');
-                document.getElementById('monthly-report-text').innerHTML = '';
-            }
-        }
-        
-        // --- Логика Графиков (Chart.js) ---
-        
-        /** Установка типа графика (mood/stress) */
-        function setChartType(type) {
-            playClickSound();
-            currentChartType = type;
-            document.querySelectorAll('.chart-type-button').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            document.querySelector(`.chart-type-button[data-type="${type}"]`).classList.add('active');
-            updateCharts();
+            
+            // Расчет метрик
+            const totalMood = filteredLogs.reduce((sum, log) => sum + log.mood, 0);
+            const totalStress = filteredLogs.reduce((sum, log) => sum + log.stress, 0);
+            const maxStress = filteredLogs.reduce((max, log) => Math.max(max, log.stress), 0);
+            const entryCount = filteredLogs.length;
+            
+            const uniqueDates = new Set(filteredLogs.map(log => log.date)).size;
+            
+            const avgMood = entryCount > 0 ? (totalMood / entryCount).toFixed(1) : '0.0';
+            
+            document.getElementById('avg-mood-summary').textContent = avgMood;
+            document.getElementById('max-stress-summary').textContent = maxStress;
+            document.getElementById('entries-count-summary').textContent = entryCount;
+            document.getElementById('days-logged-summary').textContent = uniqueDates;
         }
 
-
-        /** Инициализация или обновление графика */
-        function updateCharts() {
-            processChartData();
-            if (mainChartInstance) {
-                mainChartInstance.destroy();
-            }
-            renderChart();
-        }
-
-        /** Установка периода графика */
-        function setChartPeriod(period) {
-            playClickSound();
-            currentChartPeriod = period;
-            document.querySelectorAll('.chart-period-button').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            document.querySelector(`.chart-period-button[data-period="${period}"]`).classList.add('active');
-            updateCharts();
-        }
-
-        /** Подготовка данных для графика */
-        function processChartData() {
-            let labels = [];
-            let data = [];
-            let dateDisplay = '';
-
-            const today = new Date();
-            let startDate, endDate;
-
-            // Определяем начальную и конечную дату
-            if (currentChartPeriod === 'week') {
-                endDate = today;
-                startDate = new Date(today);
-                startDate.setDate(today.getDate() - 6);
-                dateDisplay = `Последние 7 дней (до ${formatDate(today)})`;
-            } else if (currentChartPeriod === 'month') {
-                endDate = today;
-                startDate = new Date(today);
-                startDate.setDate(today.getDate() - 29);
-                dateDisplay = `Последние 30 дней (до ${formatDate(today)})`;
-            } else if (currentChartPeriod === 'year') {
-                endDate = today;
-                startDate = new Date(today);
-                startDate.setFullYear(today.getFullYear() - 1);
-                dateDisplay = `Последние 365 дней`;
-            }
-
-            document.getElementById('chart-date-display').textContent = dateDisplay;
-
-            // Собираем данные
-            for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-                const dateKey = formatDate(d);
-                labels.push(d.getDate() + '.' + String(d.getMonth() + 1).padStart(2, '0'));
-                
-                const avgData = dailyAverages[dateKey];
-                let value = null;
-                
-                if (avgData) {
-                    value = currentChartType === 'mood' ? avgData.avgMood : avgData.avgStress;
-                }
-                
-                data.push(value);
-            }
-
-            currentChartData = { labels, data };
-        }
-
-        /** Обновление цветов графика в соответствии с темой */
-        function updateChartColors() {
-            const rootStyle = getComputedStyle(document.documentElement);
-            const accent = rootStyle.getPropertyValue('--p-accent').trim();
-            const accentLight = rootStyle.getPropertyValue('--p-accent-light').trim();
-            const text = rootStyle.getPropertyValue('--p-text').trim();
-
-            if (mainChartInstance) {
-                mainChartInstance.data.datasets[0].borderColor = accent;
-                mainChartInstance.data.datasets[0].backgroundColor = accentLight;
-                mainChartInstance.options.scales.y.ticks.color = text;
-                mainChartInstance.options.scales.x.ticks.color = text;
-                mainChartInstance.update();
-            }
-        }
-        
-        /** Рендеринг графика настроения/стресса */
+        // ИСПРАВЛЕНИЕ: Логика графиков теперь использует фиксированные диапазоны
         function renderChart() {
-            const ctx = document.getElementById('mainChart').getContext('2d');
-            const rootStyle = getComputedStyle(document.documentElement);
-            const accent = rootStyle.getPropertyValue('--p-accent').trim();
-            const accentLight = rootStyle.getPropertyValue('--p-accent-light').trim();
-            const text = rootStyle.getPropertyValue('--p-text').trim();
+            if(moodChartInstance) moodChartInstance.destroy();
+            if(stressChartInstance) stressChartInstance.destroy();
             
-            const chartLabel = currentChartType === 'mood' ? 'Среднее Настроение' : 'Средний Стресс';
+            updatePeriodSummary(); // Обновляем сводку при смене диапазона
+            
+            const now = new Date();
+            let labels = [];
+            let chartMoodData = [];
+            let chartStressData = [];
+            let displayRange = "";
 
-            mainChartInstance = new Chart(ctx, {
+            const rangeDisplay = document.getElementById('current-range-display');
+
+            // Вспомогательная функция для получения логов за дату
+            const getLogForDate = (dStr) => {
+                const dayLogs = logs.filter(l => l.date === dStr);
+                if (dayLogs.length === 0) return null;
+                const avgMood = dayLogs.reduce((s, l) => s + l.mood, 0) / dayLogs.length;
+                const avgStress = dayLogs.reduce((s, l) => s + l.stress, 0) / dayLogs.length;
+                return { mood: avgMood, stress: avgStress };
+            };
+
+            if (currentRange === 'week') {
+                // Вычисляем начало недели (Понедельник)
+                let currentWeekStart = new Date(now);
+                const day = currentWeekStart.getDay() || 7; 
+                if (day !== 1) currentWeekStart.setHours(-24 * (day - 1));
+                else currentWeekStart.setHours(0,0,0,0);
+                
+                // Применяем смещение
+                currentWeekStart.setDate(currentWeekStart.getDate() + (weekOffset * 7));
+                
+                const weekEnd = new Date(currentWeekStart);
+                weekEnd.setDate(weekEnd.getDate() + 6);
+                
+                displayRange = `${currentWeekStart.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} - ${weekEnd.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+
+                // Генерируем 7 дней
+                for(let i=0; i<7; i++) {
+                    let d = new Date(currentWeekStart);
+                    d.setDate(d.getDate() + i);
+                    const dStr = formatDate(d);
+                    const dayData = getLogForDate(dStr);
+                    
+                    const dayName = d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric' });
+                    labels.push(dayName);
+                    
+                    chartMoodData.push(dayData ? dayData.mood : null);
+                    chartStressData.push(dayData ? dayData.stress : null);
+                }
+
+            } else if (currentRange === 'month') {
+                let targetMonth = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+                displayRange = targetMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+                
+                const daysInMonth = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0).getDate();
+                
+                for(let i=1; i<=daysInMonth; i++) {
+                    let dStr = `${targetMonth.getFullYear()}-${String(targetMonth.getMonth()+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+                    labels.push(i); // Просто число месяца
+                    const dayData = getLogForDate(dStr);
+                    chartMoodData.push(dayData ? dayData.mood : null);
+                    chartStressData.push(dayData ? dayData.stress : null);
+                }
+
+            } else if (currentRange === 'year') {
+                let targetYear = now.getFullYear() + yearOffset;
+                displayRange = targetYear.toString();
+                
+                for(let i=0; i<12; i++) {
+                    const monthName = new Date(targetYear, i).toLocaleDateString('ru-RU', { month: 'short' });
+                    labels.push(monthName);
+                    
+                    const monthLogs = logs.filter(l => {
+                        const ld = parseDate(l.date);
+                        return ld.getFullYear() === targetYear && ld.getMonth() === i;
+                    });
+                    
+                    if (monthLogs.length > 0) {
+                         chartMoodData.push(monthLogs.reduce((s,l)=>s+l.mood,0)/monthLogs.length);
+                         chartStressData.push(monthLogs.reduce((s,l)=>s+l.stress,0)/monthLogs.length);
+                    } else {
+                        chartMoodData.push(null);
+                        chartStressData.push(null);
+                    }
+                }
+            } else { // All time
+                displayRange = "Все Время";
+                const sorted = [...logs].sort((a,b) => parseDate(a.date) - parseDate(b.date));
+                const uniqueDates = [...new Set(sorted.map(l => l.date))];
+                uniqueDates.forEach(dStr => {
+                     labels.push(dStr);
+                     const dayData = getLogForDate(dStr);
+                     chartMoodData.push(dayData.mood);
+                     chartStressData.push(dayData.stress);
+                });
+            }
+            
+            rangeDisplay.textContent = displayRange;
+
+            const accent = getComputedStyle(document.documentElement).getPropertyValue('--p-accent').trim();
+            
+            const commonOptions = {
+                responsive: true, 
+                maintainAspectRatio: false, 
+                scales: { 
+                    y: { 
+                        min:1, max:5, 
+                        ticks: { stepSize: 1 }, 
+                        grid: { color: getComputedStyle(document.documentElement).getPropertyValue('--p-border').trim() }
+                    }, 
+                    x: { 
+                        ticks: { autoSkip: true, maxTicksLimit: 10 },
+                        grid: { color: getComputedStyle(document.documentElement).getPropertyValue('--p-border').trim() }
+                    } 
+                },
+                plugins: {
+                    legend: { display: false } 
+                },
+                spanGaps: true 
+            };
+
+            const moodCtx = document.getElementById('mood-chart-canvas').getContext('2d');
+            moodChartInstance = new Chart(moodCtx, {
                 type: 'line',
                 data: {
-                    labels: currentChartData.labels,
+                    labels: labels,
                     datasets: [{
-                        label: chartLabel,
-                        data: currentChartData.data,
-                        fill: true,
+                        label: 'Настроение',
+                        data: chartMoodData,
                         borderColor: accent,
-                        backgroundColor: accentLight,
-                        tension: 0.3,
-                        pointRadius: 5,
-                        pointBackgroundColor: accent,
-                        pointHoverRadius: 7,
+                        backgroundColor: accent + '40',
+                        pointRadius: 4,
+                        segment: {
+                            borderColor: ctx => {
+                                if (ctx.p1.parsed.y === null) return 'transparent';
+                                const val = ctx.p1.parsed.y;
+                                return moodColors[Math.round(val)] || accent;
+                            }
+                        },
+                        pointBackgroundColor: ctx => moodColors[Math.round(ctx.raw)] || accent
                     }]
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            min: 1,
-                            max: 5,
-                            ticks: {
-                                stepSize: 1,
-                                color: text,
-                                font: { weight: 'bold' }
-                            },
-                            title: {
-                                display: true,
-                                text: chartLabel,
-                                color: text
-                            },
-                            grid: {
-                                color: accentLight,
-                                borderDash: [5, 5]
-                            }
-                        },
-                        x: {
-                            ticks: {
-                                color: text
-                            },
-                            grid: {
-                                display: false
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return `${chartLabel}: ${context.parsed.y.toFixed(2)}`;
-                                }
-                            }
-                        }
-                    }
-                }
+                options: commonOptions
+            });
+            
+            const stressCtx = document.getElementById('stress-chart-canvas').getContext('2d');
+            stressChartInstance = new Chart(stressCtx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Стресс',
+                        data: chartStressData,
+                        borderColor: '#EF4444',
+                        backgroundColor: '#EF444440',
+                        pointRadius: 4,
+                        pointBackgroundColor: '#EF4444'
+                    }]
+                },
+                options: commonOptions
             });
         }
         
-        // --- Gemini AI Логика ---
-        
-        /**
-         * Управляет вызовом Gemini API для генерации отчета.
-         */
-        async function generateAnalysis(log) {
-            const container = document.getElementById('ai-analysis-container');
-            const output = document.getElementById('ai-analysis-output');
-            const loading = document.getElementById('ai-loading');
-            const citationContainer = document.getElementById('ai-citation-container');
-            const citationList = document.getElementById('ai-citation-list');
+        function renderLogs() {
+            const list = document.getElementById('logs-list');
+            list.innerHTML = '';
+            logs.slice().reverse().forEach(log => {
+                const li = document.createElement('li');
+                li.className = 'flex items-start p-4 rounded-xl card-bg smooth-transition hover:shadow-md';
+                
+                const moodCol = moodColors[log.mood];
+                
+                li.innerHTML = `
+                    <div class="flex-shrink-0 w-16 text-center border-r pr-4 mr-4" style="border-color: var(--p-border)">
+                        <div class="text-xs font-bold opacity-60" style="color: var(--p-text-muted)">${log.date}</div>
+                        <div class="text-xs font-bold opacity-60" style="color: var(--p-text-muted)">${log.exactTime || ''}</div>
+                    </div>
+                    
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="px-2 py-0.5 rounded text-xs font-bold text-white" style="background-color: ${moodCol}">M: ${log.mood}</span>
+                            <span class="px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">S: ${log.stress}</span>
+                        </div>
+                        <p class="text-sm text-ellipsis overflow-hidden whitespace-nowrap" style="color: var(--p-text)">${log.note || "Нет заметки"}</p>
+                    </div>
 
-            output.innerHTML = '';
-            citationList.innerHTML = '';
-            citationContainer.classList.add('hidden');
-            container.classList.remove('hidden');
-            loading.classList.remove('hidden');
-
-            const systemPrompt = `Ты - продвинутый психолог и аналитик данных. Твоя задача - проанализировать одну запись из дневника настроения пользователя. 
-            Предоставь краткий и эмпатичный анализ, основанный на: 
-            1. Оценке настроения (от 1 до 5).
-            2. Оценке стресса (от 1 до 5).
-            3. Описании событий дня.
-            ${geminiSettings.reportLength === 'Short' ? 'Ответ должен быть в одном-двух абзацах.' : 
-              geminiSettings.reportLength === 'Medium' ? 'Ответ должен быть в 3-4 абзацах.' : 
-              'Ответ должен быть подробным (4-6 абзацев).'}
-            Обязательно дай совет или предложи небольшую практику, основанную на записи, учитывая баланс настроения и стресса.
-            Используй только предоставленную информацию, не ищи внешние данные.`;
-
-            const userQuery = `Анализ записи:
-            Дата/Время: ${log.date} ${log.time}
-            Оценка настроения: ${log.mood}/5 (${MOOD_LABELS[log.mood]})
-            Оценка стресса: ${log.stress || 3}/5 (${STRESS_LABELS[log.stress || 3]})
-            Описание дня: "${log.notes}"`;
-            
-            await callGeminiApi(systemPrompt, userQuery, output, citationList, citationContainer);
-            loading.classList.add('hidden');
+                    <div class="flex flex-col gap-2 ml-4 flex-shrink-0">
+                        <button onclick="editNote(${log.id})" class="p-1 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><i data-lucide="edit-2" width="16"></i></button>
+                        <button onclick="deleteNote(${log.id})" class="p-1 rounded-full text-red-400 hover:text-red-600 dark:hover:text-red-300"><i data-lucide="trash" width="16"></i></button>
+                    </div>
+                `;
+                list.appendChild(li);
+            });
+            lucide.createIcons();
         }
 
-        /**
-         * Генерирует и отображает ежемесячный отчет.
-         */
-        async function getMonthlyReport() {
-            const logsInMonth = dailyLogs.filter(log => {
-                const date = new Date(log.date);
-                return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-            }).sort((a, b) => a.timestamp - b.timestamp); 
-
-            if (logsInMonth.length === 0) return;
-
-            const dateRange = `${MONTH_NAMES[currentMonth]} ${currentYear} г.`;
-            const logsText = logsInMonth.map(log => 
-                `* [${log.date.substring(5)}] Настроение ${log.mood}/5, Стресс ${log.stress || 3}/5: ${log.notes}`
-            ).join('\n');
-            
-            const systemPrompt = `Ты - продвинутый психолог и аналитик данных. Твоя задача - проанализировать данные дневника настроения и стресса за месяц.
-            Предоставь всесторонний отчет, который включает:
-            1. Общая тенденция настроения и стресса (баланс, колебания, корреляция).
-            2. Выявление общих тем, которые коррелируют с высоким/низким настроением И высоким/низким стрессом.
-            3. Заключительный вывод и общие рекомендации для следующего месяца.
-            ${geminiSettings.reportLength === 'Short' ? 'Отчет должен быть кратким (1-2 абзаца).' : 
-              geminiSettings.reportLength === 'Medium' ? 'Отчет должен быть средним (3-4 абзаца).' : 
-              'Отчет должен быть подробным (4-6 абзацев).'}
-            Используй только предоставленные данные. Форматируй ответ с использованием Markdown (заголовки, жирный текст, списки).`;
-
-            const userQuery = `Проанализируй следующие записи за период ${dateRange}:\n\n${logsText}`;
-
-            const reportOutput = document.getElementById('monthly-report-text');
-            const loading = document.getElementById('report-ai-loading');
-            
-            reportOutput.innerHTML = '';
-            loading.classList.add('hidden');
-
-            await callGeminiApi(systemPrompt, userQuery, reportOutput, null, null);
-            loading.classList.add('hidden');
+        window.promptToCreateLog = function(date) {
+            document.getElementById('log-date').value = date;
+            document.querySelector('.tab-btn[data-target="log-entry"]').click();
         }
 
+        // --- Gemini AI (Полная Логика) ---
+        async function fetchGeminiAnalysis() {
+             if(!apiKey) { showMessageBox("Ошибка", "Пожалуйста, введите ваш Gemini API Key во вкладке 'Настройки'."); return; }
+             if (logs.length === 0) { showMessageBox("Инфо", "Нет данных для анализа. Сделайте хотя бы одну запись."); return; }
+             
+             const btn = document.getElementById('analyze-btn');
+             const outputElement = document.getElementById('analysis-output');
+             const citationContainer = document.getElementById('citation-container');
+             const citationList = document.getElementById('citations-list');
+             
+             const originalText = btn.textContent;
+             btn.textContent = "Анализирую..."; btn.disabled = true;
+             outputElement.innerHTML = '<p class="text-gray-500 italic">... Идет анализ данных. Пожалуйста, подождите. ...</p>';
+             citationContainer.classList.add('hidden');
+             citationList.innerHTML = '';
+             
+             // Формируем промпт
+             const dataForAI = logs.slice(-30).map(log => 
+                `[${log.date} ${log.exactTime || ''}] Настроение: ${log.mood}/5, Стресс: ${log.stress}/5, Заметка: ${log.note}`
+             ).join('\n');
 
-        /**
-         * Вызов API Gemini с экспоненциальным отступлением.
-         */
-        async function callGeminiApi(systemPrompt, userQuery, outputElement, citationList, citationContainer) {
-            const apiKey = userProvidedApiKey;
-            const model = geminiSettings.model;
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-            const payload = {
+             const userQuery = `Проанализируй следующий дневник настроения. Дай оценку тенденциям и предложи рекомендации. Формат Markdown. Если уместно, используй таблицы.\n\nДанные:\n${dataForAI}`;
+             
+             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+             const payload = {
                 contents: [{ parts: [{ text: userQuery }] }],
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-            };
-
-            const MAX_RETRIES = 5;
-            for (let i = 0; i < MAX_RETRIES; i++) {
-                try {
-                    const response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (!response.ok) {
-                        if (response.status === 429 && i < MAX_RETRIES - 1) {
-                            await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
-                            continue;
-                        }
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-
-                    const result = await response.json();
-                    const candidate = result.candidates?.[0];
-
-                    if (candidate && candidate.content?.parts?.[0]?.text) {
-                        const text = candidate.content.parts[0].text;
-                        
-                        // ПРИМЕНЕНИЕ MARKDOWN К ТЕКСТУ ОТЧЕТА
-                        const formattedText = markdownToHtml(text);
-                        outputElement.innerHTML = formattedText;
-                        
-                        if (citationList && citationContainer) {
-                            let sources = [];
-                            const groundingMetadata = candidate.groundingMetadata;
-                            if (groundingMetadata && groundingMetadata.groundingAttributions) {
-                                sources = groundingMetadata.groundingAttributions.map(attribution => ({
-                                    uri: attribution.web?.uri,
-                                    title: attribution.web?.title,
-                                })).filter(source => source.uri && source.title);
-                            }
-
-                            if (sources.length > 0) {
-                                citationList.innerHTML = sources.map(s => 
-                                    `<li><a href="${s.uri}" target="_blank" class="text-purple-600 hover:underline">${s.title}</a></li>`
-                                ).join('');
-                                citationContainer.classList.remove('hidden');
-                            }
-                        }
-                        return;
-
-                    } else {
-                        throw new Error("Не удалось получить текст от Gemini AI.");
-                    }
-                } catch (error) {
-                    console.error("Gemini API Error:", error);
-                    outputElement.textContent = `Ошибка: Не удалось получить анализ. Проверьте ваш API Key и лимиты. (${error.message})`;
-                    return;
+                systemInstruction: { parts: [{ text: aiSystemInstruction || "Ты полезный психологический помощник. Всегда давай полезные и конкретные рекомендации." }] }
+             };
+             
+             try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+                const result = await response.json();
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (text) {
+                    outputElement.innerHTML = markdownToHtml(text);
+                } else {
+                    outputElement.textContent = "Не удалось получить ответ от модели.";
                 }
-            }
+             } catch (e) {
+                console.error(e);
+                outputElement.textContent = `Ошибка: ${e.message}`;
+             } finally {
+                btn.textContent = originalText; btn.disabled = false;
+             }
         }
 
+        document.getElementById('analyze-btn').addEventListener('click', fetchGeminiAnalysis);
 
-        // --- Инициализация Приложения ---
 
+        // --- Инит ---
         document.addEventListener('DOMContentLoaded', () => {
             loadSettings();
+            resetForm();
             loadData();
             
-            selectMood(currentMood);
-            selectStress(currentStress); 
-            
-            // Установка текущей даты в поле ввода при старте
-            document.getElementById('log-date').value = formatDate(new Date());
+            // Обработчики кнопок настроения и стресса
+            document.getElementById('mood-selector').addEventListener('click', (e) => {
+                const btn = e.target.closest('.mood-btn');
+                if (btn) { selectMood(parseInt(btn.dataset.mood)); }
+            });
 
-            // Первичное отображение
-            const initialView = document.querySelector('.view-content.active-view');
-            if (initialView) {
-                setTimeout(() => {
-                    initialView.classList.add('active-view');
-                }, 10);
+            document.getElementById('stress-selector').addEventListener('click', (e) => {
+                const btn = e.target.closest('.stress-btn');
+                if (btn) { selectStress(parseInt(btn.dataset.stress)); }
+            });
+            
+            // Табы
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', (e) => {
+                 document.querySelectorAll('.tab-btn').forEach(b => {
+                     b.classList.remove('bg-gray-100', 'dark:bg-slate-700');
+                     b.style.color = 'var(--p-text)';
+                 });
+                 e.target.classList.add('bg-gray-100', 'dark:bg-slate-700');
+                 e.target.style.color = 'var(--p-accent)';
+                 
+                 document.querySelectorAll('.view-content').forEach(v => v.classList.remove('active-view'));
+                 document.getElementById(e.target.dataset.target).classList.add('active-view');
+
+                 // Обновляем графики при переключении на вкладку logs
+                 if (e.target.dataset.target === 'logs') {
+                    renderChart();
+                    updatePeriodSummary();
+                 }
+            }));
+            document.querySelector('.tab-btn[data-target="log-entry"]').click();
+
+            // Обработчики настроек
+            document.getElementById('global-theme-toggle').addEventListener('click', () => applyDarkMode(!isDarkMode));
+            document.getElementById('settings-theme-toggle').addEventListener('click', () => applyDarkMode(!isDarkMode));
+            
+            document.getElementById('theme-selector').addEventListener('click', (e) => {
+                if(e.target.classList.contains('theme-btn')) applyTheme(e.target.dataset.theme);
+            });
+            
+            // Цвета
+            for(let i=1; i<=5; i++) {
+                document.getElementById(`color-mood-${i}`).addEventListener('input', (e) => {
+                    moodColors[i] = e.target.value;
+                    localStorage.setItem('moodColors', JSON.stringify(moodColors));
+                    applyMoodColors();
+                });
             }
+            document.getElementById('reset-colors-btn').addEventListener('click', () => {
+                moodColors = { 1: '#EF4444', 2: '#F97316', 3: '#EAB308', 4: '#22C55E', 5: '#3B82F6' };
+                localStorage.setItem('moodColors', JSON.stringify(moodColors));
+                for(let i=1; i<=5; i++) document.getElementById(`color-mood-${i}`).value = moodColors[i];
+                applyMoodColors();
+            });
+
+            // Уведомления
+            document.getElementById('notify-toggle').addEventListener('click', () => {
+                notifyEnabled = !notifyEnabled;
+                localStorage.setItem('notifyEnabled', notifyEnabled);
+                updateNotifyUI();
+                checkNotificationPermission();
+            });
+            document.getElementById('notify-time').addEventListener('change', (e) => {
+                notifyTime = e.target.value;
+                localStorage.setItem('notifyTime', notifyTime);
+                if(notifyEnabled) startNotificationTimer();
+            });
+
+            // API
+            document.getElementById('api-key-input').addEventListener('change', saveSettings);
+            document.getElementById('ai-instruction').addEventListener('change', saveSettings);
+            
+            // Логи
+            document.getElementById('save-log-btn').addEventListener('click', saveLog);
+            document.getElementById('cancel-edit-btn').addEventListener('click', resetForm);
+
+            // Обработчики Графиков (Единая навигация) 
+            document.getElementById('time-range-select').addEventListener('change', (e) => {
+                currentRange = e.target.value;
+                weekOffset = 0; monthOffset = 0; yearOffset = 0; 
+                renderChart();
+                playClick();
+            });
+
+            document.getElementById('prev-time-btn').addEventListener('click', () => {
+                if (currentRange === 'week') weekOffset--;
+                else if (currentRange === 'month') monthOffset--;
+                else if (currentRange === 'year') yearOffset--;
+                renderChart();
+                playClick();
+            });
+
+            document.getElementById('next-time-btn').addEventListener('click', () => {
+                if (currentRange === 'week') weekOffset++;
+                else if (currentRange === 'month') monthOffset++;
+                else if (currentRange === 'year') yearOffset++;
+                renderChart();
+                playClick();
+            });
+            
+            // Обработчики Календаря
+            document.getElementById('prev-month-btn').addEventListener('click', () => {
+                currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+                renderCalendar(currentCalendarDate);
+                playClick();
+            });
+
+            document.getElementById('next-month-btn').addEventListener('click', () => {
+                currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+                renderCalendar(currentCalendarDate);
+                playClick();
+            });
         });
     </script>
 </body>
 </html>
-
