@@ -75,6 +75,25 @@
             transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
         }
         #toast.show { transform: translateY(0); }
+
+        .ai-action-btn {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .ai-action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .ai-action-btn:active {
+            transform: translateY(0px) scale(0.95);
+        }
+        
+        .loading-pulse {
+            animation: pulse-opacity 1.5s infinite ease-in-out;
+        }
+        @keyframes pulse-opacity {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
     </style>
 </head>
 <body class="min-h-screen pb-10">
@@ -173,16 +192,34 @@
                 </div>
 
                 <!-- AI Insight -->
-                <div class="glass-card p-6 rounded-[2.5rem] bg-gradient-to-br from-[var(--p-card-bg)] to-[var(--p-accent-light)] border-none relative">
-                    <div class="flex justify-between items-center mb-4">
+                <div class="glass-card p-6 rounded-[2.5rem] bg-gradient-to-br from-[var(--p-card-bg)] to-[var(--p-accent-light)] border-none relative overflow-hidden flex flex-col min-h-[220px]">
+                    <div class="flex justify-between items-center mb-4 relative z-10">
                         <h3 class="text-[var(--p-accent)] font-bold flex items-center gap-2">
                             <i data-lucide="brain" class="w-5 h-5"></i> AI Аналитик
                         </h3>
-                        <button id="ai-refresh" class="p-2 rounded-full hover:bg-[var(--p-accent)]/10 transition-colors">
+                        <button id="ai-refresh" title="Обновить статус" class="p-2 rounded-full hover:bg-[var(--p-accent)]/10 transition-colors">
                             <i data-lucide="rotate-cw" id="ai-icon" class="w-4 h-4"></i>
                         </button>
                     </div>
-                    <p id="ai-text" class="text-sm leading-relaxed opacity-80">Загружаю данные для анализа...</p>
+                    
+                    <div class="relative z-10 flex-grow">
+                        <p id="ai-text" class="text-sm leading-relaxed opacity-80">Загружаю данные для анализа...</p>
+                    </div>
+
+                    <!-- Новое расположение кнопок внизу -->
+                    <div class="mt-6 flex gap-3 relative z-10">
+                         <button id="ai-get-advice" class="ai-action-btn flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[var(--p-accent)] text-white text-[11px] font-bold uppercase tracking-wider">
+                            <i data-lucide="lightbulb" class="w-4 h-4"></i>
+                            <span>Дай совет</span>
+                        </button>
+                        <button id="ai-get-question" class="ai-action-btn flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-[var(--p-accent)] text-[var(--p-accent)] text-[11px] font-bold uppercase tracking-wider">
+                            <i data-lucide="help-circle" class="w-4 h-4"></i>
+                            <span>Вопрос дня</span>
+                        </button>
+                    </div>
+
+                    <!-- Декоративное сияние -->
+                    <div class="absolute -right-10 -bottom-10 w-32 h-32 bg-[var(--p-accent)] opacity-5 blur-[40px] rounded-full"></div>
                 </div>
 
                 <!-- History List -->
@@ -323,7 +360,7 @@
             renderHistory();
             renderCalendar();
             renderChart();
-            updateAI();
+            updateAI('auto');
         }
 
         function renderHistory() {
@@ -445,31 +482,63 @@
             });
         }
 
-        async function updateAI() {
+        async function updateAI(type = 'auto') {
             const api = localStorage.getItem('ms_api');
             const box = document.getElementById('ai-text');
             const ico = document.getElementById('ai-icon');
-            ico.classList.add('anim-rotate');
-            if (!entries.length) {
-                box.innerText = "Начни вести дневник, и я проанализирую твою неделю!";
-                ico.classList.remove('anim-rotate');
+            
+            if (ico) ico.classList.add('anim-rotate');
+            box.classList.add('loading-pulse');
+
+            if (!api) {
+                box.innerText = "Подключи API ключ в настройках (Gemini), чтобы я мог анализировать твои данные и давать советы!";
+                box.classList.remove('loading-pulse');
+                if (ico) ico.classList.remove('anim-rotate');
                 return;
             }
-            if (api) {
-                try {
-                    const recent = entries.slice(0, 10);
-                    const prompt = `Ты психолог. Анализируй: ${JSON.stringify(recent)}. Напиши краткий совет поддержки (до 150 символов).`;
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${api}`, {
-                        method: 'POST',
-                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-                    });
-                    const d = await res.json();
-                    box.innerText = d.candidates?.[0]?.content?.parts?.[0]?.text || "Баланс — ключ к гармонии.";
-                } catch(e) { box.innerText = "Совет: Удели сегодня 15 минут тишине."; }
-            } else {
-                box.innerText = "Совет: Улыбнись своему отражению, ты молодец!";
+
+            if (!entries.length && type !== 'question') {
+                box.innerText = "Добавь хотя бы одну запись в дневник, чтобы я мог начать анализ!";
+                box.classList.remove('loading-pulse');
+                if (ico) ico.classList.remove('anim-rotate');
+                return;
             }
-            ico.classList.remove('anim-rotate');
+
+            try {
+                const recent = entries.slice(0, 15);
+                let prompt = "";
+                
+                if (type === 'advice') {
+                    prompt = `Ты — эмпатичный психолог. Проанализируй последние записи пользователя: ${JSON.stringify(recent)}. На основе этих данных дай один глубокий, практичный совет (от 200 до 400 символов). Пиши человечно, поддерживающе, без Markdown (жирного шрифта или списков).`;
+                } else if (type === 'question') {
+                    prompt = `Придумай один уникальный коучинговый вопрос для рефлексии на сегодня. Вопрос должен помогать понять свои истинные желания или разобраться в эмоциях. Объем — около 150-250 символов. Без Markdown.`;
+                } else {
+                    prompt = `Проанализируй состояние пользователя по записям: ${JSON.stringify(recent)}. Напиши краткое саммари его эмоционального фона за последние дни (до 200 символов). Без Markdown.`;
+                }
+
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${api}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+
+                if (!res.ok) throw new Error("API Error");
+
+                const d = await res.json();
+                const text = d.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (text) {
+                    box.innerText = text.trim();
+                } else {
+                    box.innerText = "Сегодня идеальный день, чтобы просто прислушаться к себе.";
+                }
+            } catch(e) { 
+                console.error(e);
+                box.innerText = "Не удалось связаться с AI. Проверь ключ или попробуй позже."; 
+            } finally {
+                box.classList.remove('loading-pulse');
+                if (ico) ico.classList.remove('anim-rotate');
+            }
         }
 
         // --- Event Handlers ---
@@ -580,7 +649,11 @@
         document.getElementById('range-next').addEventListener('click', () => { currentRange === 'week' ? weekOffset++ : monthOffset++; renderChart(); });
         document.getElementById('cal-prev').addEventListener('click', () => { calDate.setMonth(calDate.getMonth()-1); renderCalendar(); });
         document.getElementById('cal-next').addEventListener('click', () => { calDate.setMonth(calDate.getMonth()+1); renderCalendar(); });
-        document.getElementById('ai-refresh').addEventListener('click', updateAI);
+        
+        document.getElementById('ai-refresh').addEventListener('click', () => { updateAI('auto'); playClick(); });
+        document.getElementById('ai-get-advice').addEventListener('click', () => { updateAI('advice'); playClick(); });
+        document.getElementById('ai-get-question').addEventListener('click', () => { updateAI('question'); playClick(); });
+
         document.getElementById('export-btn').addEventListener('click', () => {
             const blob = new Blob([JSON.stringify(entries)], {type:'application/json'});
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'mindspace.json'; a.click();
