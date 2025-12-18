@@ -76,23 +76,17 @@
         }
         #toast.show { transform: translateY(0); }
 
-        .ai-action-btn {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .ai-action-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        .ai-action-btn:active {
-            transform: translateY(0px) scale(0.95);
-        }
-        
         .loading-pulse {
             animation: pulse-opacity 1.5s infinite ease-in-out;
         }
         @keyframes pulse-opacity {
             0%, 100% { opacity: 0.5; }
             50% { opacity: 1; }
+        }
+
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(4px);
         }
     </style>
 </head>
@@ -105,7 +99,7 @@
                 <h1 class="text-3xl font-800 tracking-tight flex items-center gap-2">
                     <i data-lucide="sparkles" class="text-[var(--p-accent)]"></i> MindSpace
                 </h1>
-                <p class="text-[var(--p-text-muted)] text-sm mt-1">Твой осознанный путь к балансу</p>
+                <p class="text-[var(--p-text-muted)] text-xs mt-1">Твой осознанный путь к балансу</p>
             </div>
             <div class="flex gap-2">
                 <button id="theme-toggle" class="p-3 glass-card rounded-2xl hover:scale-105 transition-all">
@@ -118,7 +112,7 @@
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <!-- Left Side: Data Entry -->
+            <!-- Left Side -->
             <div class="lg:col-span-5 space-y-6">
                 <div class="glass-card p-6 rounded-[2rem]">
                     <h2 class="text-xl font-700 mb-6 flex items-center gap-2"><i data-lucide="heart"></i> Состояние</h2>
@@ -137,7 +131,7 @@
                         <button data-mood="5" class="mood-btn p-3 rounded-2xl bg-blue-50 dark:bg-blue-900/10 text-2xl">🤩</button>
                     </div>
 
-                    <label class="block text-[10px] font-bold uppercase tracking-widest mb-3 opacity-60">Уровень стресса</label>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest mb-3 opacity-60">Стресс</label>
                     <div class="grid grid-cols-5 gap-2 mb-6" id="stress-selector">
                         <button data-stress="1" class="stress-btn py-2 rounded-xl bg-[var(--p-bg)] font-bold text-xs">1</button>
                         <button data-stress="2" class="stress-btn py-2 rounded-xl bg-[var(--p-bg)] font-bold text-xs">2</button>
@@ -146,15 +140,13 @@
                         <button data-stress="5" class="stress-btn py-2 rounded-xl bg-[var(--p-bg)] font-bold text-xs">5</button>
                     </div>
 
-                    <textarea id="mood-note" placeholder="Пару слов о сегодняшнем дне..." class="w-full h-24 p-4 rounded-2xl bg-[var(--p-bg)] border-none outline-none focus:ring-2 focus:ring-[var(--p-accent)] resize-none mb-4 transition-all"></textarea>
+                    <textarea id="mood-note" placeholder="Что чувствуешь сейчас?" class="w-full h-24 p-4 rounded-2xl bg-[var(--p-bg)] border-none outline-none focus:ring-2 focus:ring-[var(--p-accent)] resize-none mb-4 transition-all"></textarea>
                     
                     <button id="save-entry" class="w-full py-4 rounded-2xl btn-primary font-800 shadow-xl shadow-[var(--p-accent)]/20 hover:scale-[1.02] active:scale-95 transition-all">
                         Сохранить запись
                     </button>
-                    <input type="hidden" id="editing-id" value="">
                 </div>
 
-                <!-- Calendar View -->
                 <div class="glass-card p-6 rounded-[2rem]">
                     <div class="flex justify-between items-center mb-4">
                         <h3 id="cal-month-title" class="font-bold text-sm"></h3>
@@ -167,14 +159,14 @@
                 </div>
             </div>
 
-            <!-- Right Side: Analytics & AI -->
+            <!-- Right Side -->
             <div class="lg:col-span-7 space-y-6">
-                <!-- Analytics Chart -->
+                <!-- Analytics -->
                 <div class="glass-card p-6 rounded-[3rem]">
                     <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
                         <div class="flex gap-4">
-                            <button id="btn-show-mood" class="tab-btn active font-700">Настроение</button>
-                            <button id="btn-show-stress" class="tab-btn font-700">Стресс</button>
+                            <button id="btn-show-mood" class="tab-btn active font-700 text-sm">Настроение</button>
+                            <button id="btn-show-stress" class="tab-btn font-700 text-sm">Стресс</button>
                         </div>
                         <select id="range-select" class="bg-[var(--p-bg)] text-xs font-bold p-2 rounded-xl outline-none cursor-pointer">
                             <option value="week">Неделя</option>
@@ -186,43 +178,46 @@
                     </div>
                     <div class="flex justify-center items-center gap-6 mt-4">
                         <button id="range-prev" class="p-2 hover:text-[var(--p-accent)]"><i data-lucide="arrow-left" class="w-4 h-4"></i></button>
-                        <span id="range-text" class="text-xs font-bold opacity-50 uppercase tracking-widest min-w-[140px] text-center"></span>
+                        <span id="range-text" class="text-[10px] font-bold opacity-50 uppercase tracking-widest min-w-[140px] text-center"></span>
                         <button id="range-next" class="p-2 hover:text-[var(--p-accent)]"><i data-lucide="arrow-right" class="w-4 h-4"></i></button>
                     </div>
                 </div>
 
-                <!-- AI Insight Card -->
-                <div class="glass-card p-8 rounded-[2.5rem] bg-gradient-to-br from-[var(--p-card-bg)] to-[var(--p-accent-light)] border-none relative overflow-hidden flex flex-col min-h-[260px]">
-                    <div class="flex justify-between items-center mb-6 relative z-10">
+                <!-- AI Блок -->
+                <div class="glass-card p-8 rounded-[2.5rem] bg-gradient-to-br from-[var(--p-card-bg)] to-[var(--p-accent-light)] border-none relative overflow-hidden flex flex-col min-h-[300px]">
+                    <div class="flex justify-between items-start mb-6 relative z-10">
                         <h3 class="text-[var(--p-accent)] font-bold flex items-center gap-2">
                             <i data-lucide="brain" class="w-5 h-5"></i> AI Аналитик
                         </h3>
-                        <button id="ai-refresh" title="Обновить анализ" class="p-2 rounded-full hover:bg-[var(--p-accent)]/10 transition-colors">
-                            <i data-lucide="rotate-cw" id="ai-icon" class="w-4 h-4"></i>
-                        </button>
+                        <div class="flex gap-1">
+                            <button id="ai-copy" class="p-2 rounded-xl hover:bg-[var(--p-accent)]/10 transition-colors text-[var(--p-accent)]" title="Копировать">
+                                <i data-lucide="copy" class="w-4 h-4"></i>
+                            </button>
+                            <button id="ai-refresh" class="p-2 rounded-xl hover:bg-[var(--p-accent)]/10 transition-colors text-[var(--p-accent)]" title="Обновить">
+                                <i data-lucide="rotate-cw" id="ai-icon" class="w-4 h-4"></i>
+                            </button>
+                        </div>
                     </div>
                     
-                    <div class="relative z-10 flex-grow mb-6">
-                        <p id="ai-text" class="text-sm leading-relaxed opacity-80 italic">Нажмите на кнопки ниже, чтобы получить совет или вопрос дня...</p>
+                    <div class="relative z-10 flex-grow mb-8">
+                        <p id="ai-text" class="text-sm leading-relaxed opacity-80 italic">Нажмите кнопки ниже для глубокого анализа или вопроса дня...</p>
                     </div>
 
-                    <!-- AI Action Buttons at the Bottom -->
-                    <div class="grid grid-cols-2 gap-4 relative z-10">
-                         <button id="ai-get-advice" class="ai-action-btn flex items-center justify-center gap-2 py-4 rounded-2xl bg-[var(--p-accent)] text-white text-[12px] font-bold uppercase tracking-wider shadow-lg shadow-[var(--p-accent)]/20">
+                    <div class="grid grid-cols-2 gap-4 relative z-10 mt-auto">
+                         <button id="ai-get-advice" class="ai-action-btn flex items-center justify-center gap-2 py-4 rounded-2xl bg-[var(--p-accent)] text-white text-[11px] font-bold uppercase tracking-wider shadow-lg shadow-[var(--p-accent)]/20">
                             <i data-lucide="lightbulb" class="w-4 h-4"></i>
                             <span>Дай совет</span>
                         </button>
-                        <button id="ai-get-question" class="ai-action-btn flex items-center justify-center gap-2 py-4 rounded-2xl border-2 border-[var(--p-accent)] text-[var(--p-accent)] text-[12px] font-bold uppercase tracking-wider">
+                        <button id="ai-get-question" class="ai-action-btn flex items-center justify-center gap-2 py-4 rounded-2xl border-2 border-[var(--p-accent)] text-[var(--p-accent)] text-[11px] font-bold uppercase tracking-wider">
                             <i data-lucide="help-circle" class="w-4 h-4"></i>
                             <span>Вопрос дня</span>
                         </button>
                     </div>
 
-                    <!-- Decorative Background Element -->
-                    <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-[var(--p-accent)] opacity-[0.03] blur-[60px] rounded-full"></div>
+                    <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-[var(--p-accent)] opacity-[0.05] blur-[60px] rounded-full"></div>
                 </div>
 
-                <!-- History List -->
+                <!-- History -->
                 <div class="glass-card p-6 rounded-[2.5rem] flex flex-col h-[400px]">
                     <h3 class="font-700 mb-4 flex items-center gap-2"><i data-lucide="history"></i> История</h3>
                     <div id="history-container" class="space-y-3 overflow-y-auto custom-scrollbar pr-2 flex-grow"></div>
@@ -231,17 +226,16 @@
         </div>
     </div>
 
-    <!-- Modal: Settings -->
-    <div id="modal-settings" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="glass-card w-full max-w-sm rounded-[2.5rem] p-8 animate-in zoom-in duration-200">
+    <!-- Модальные окна -->
+    <div id="modal-settings" class="fixed inset-0 modal-overlay z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-card w-full max-w-sm rounded-[2.5rem] p-8">
             <div class="flex justify-between items-center mb-8">
-                <h2 class="text-2xl font-800 tracking-tight">Настройки</h2>
-                <button id="close-modal" class="p-2"><i data-lucide="x"></i></button>
+                <h2 class="text-2xl font-800 tracking-tight tracking-tight">Настройки</h2>
+                <button id="close-modal" class="p-2 hover:scale-110 transition-transform"><i data-lucide="x"></i></button>
             </div>
-            
             <div class="space-y-6">
                 <div>
-                    <label class="block text-[10px] font-bold uppercase opacity-50 mb-4 tracking-widest">Палитра приложения</label>
+                    <label class="block text-[10px] font-bold uppercase opacity-50 mb-4 tracking-widest">Палитра</label>
                     <div class="grid grid-cols-4 gap-3" id="theme-selector">
                         <button data-t="lavender" class="h-10 rounded-2xl bg-[#8B5CF6] hover:scale-110 transition-all"></button>
                         <button data-t="velvet" class="h-10 rounded-2xl bg-[#EF4444] hover:scale-110 transition-all"></button>
@@ -249,51 +243,46 @@
                         <button data-t="ocean" class="h-10 rounded-2xl bg-[#0EA5E9] hover:scale-110 transition-all"></button>
                     </div>
                 </div>
-
                 <div>
-                    <label class="block text-[10px] font-bold uppercase opacity-50 mb-3 tracking-widest">Gemini API Key</label>
-                    <input type="password" id="api-key" placeholder="Вставьте ваш API ключ..." class="w-full p-4 rounded-2xl bg-[var(--p-bg)] outline-none border-none text-sm focus:ring-2 focus:ring-[var(--p-accent)]">
-                    <p class="text-[9px] opacity-40 mt-2">Ключ хранится только в вашем браузере.</p>
-                </div>
-
-                <div class="flex flex-col gap-2">
-                    <button id="save-settings" class="w-full py-4 rounded-2xl btn-primary font-800 shadow-lg transition-all active:scale-95">
-                        Сохранить настройки
-                    </button>
-                    <div class="grid grid-cols-2 gap-2 mt-2">
-                        <button id="export-btn" class="py-3 rounded-xl border-2 border-[var(--p-accent)] text-[var(--p-accent)] font-bold text-[10px] hover:bg-[var(--p-accent-light)] transition-all flex items-center justify-center gap-1">
+                    <label class="block text-[10px] font-bold uppercase opacity-50 mb-3 tracking-widest">Данные (JSON)</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="export-btn" class="flex items-center justify-center gap-2 py-3 rounded-2xl bg-[var(--p-bg)] text-[10px] font-bold uppercase tracking-wider hover:bg-[var(--p-accent)] hover:text-white transition-all">
                             <i data-lucide="download" class="w-3 h-3"></i> Экспорт
                         </button>
-                        <label class="py-3 rounded-xl border-2 border-[var(--p-accent)] text-[var(--p-accent)] font-bold text-[10px] hover:bg-[var(--p-accent-light)] transition-all flex items-center justify-center gap-1 cursor-pointer">
+                        <button id="import-btn-trigger" class="flex items-center justify-center gap-2 py-3 rounded-2xl bg-[var(--p-bg)] text-[10px] font-bold uppercase tracking-wider hover:bg-[var(--p-accent)] hover:text-white transition-all">
                             <i data-lucide="upload" class="w-3 h-3"></i> Импорт
-                            <input type="file" id="import-input" class="hidden" accept=".json">
-                        </label>
+                        </button>
+                        <input type="file" id="import-file" class="hidden" accept=".json">
                     </div>
                 </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase opacity-50 mb-3 tracking-widest">Gemini API Key</label>
+                    <input type="password" id="api-key" placeholder="AI ключ..." class="w-full p-4 rounded-2xl bg-[var(--p-bg)] outline-none border-none text-sm focus:ring-2 focus:ring-[var(--p-accent)]">
+                </div>
+                <button id="save-settings" class="w-full py-4 rounded-2xl btn-primary font-800 shadow-lg transition-all active:scale-95">Сохранить</button>
             </div>
         </div>
     </div>
 
-    <!-- Modal: Confirmation -->
-    <div id="confirm-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
-        <div class="glass-card max-w-xs w-full p-6 rounded-[2rem] text-center">
-            <h4 class="font-bold mb-2">Удалить запись?</h4>
-            <p class="text-xs opacity-60 mb-6">Это действие нельзя будет отменить.</p>
-            <div class="flex gap-3">
-                <button id="confirm-cancel" class="flex-1 py-3 bg-gray-100 dark:bg-white/10 rounded-xl font-bold text-xs">Нет</button>
-                <button id="confirm-yes" class="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold text-xs">Да, удалить</button>
+    <div id="modal-delete" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center p-4">
+        <div class="glass-card w-full max-w-xs rounded-[2rem] p-6 text-center">
+            <div class="w-12 h-12 bg-red-100 dark:bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="alert-triangle"></i>
+            </div>
+            <h3 class="font-bold mb-2 text-lg">Удалить запись?</h3>
+            <p class="text-xs opacity-60 mb-6">Это действие невозможно отменить.</p>
+            <div class="grid grid-cols-2 gap-3">
+                <button id="confirm-delete-cancel" class="py-3 rounded-xl bg-[var(--p-bg)] font-bold text-xs uppercase">Отмена</button>
+                <button id="confirm-delete-ok" class="py-3 rounded-xl bg-red-500 text-white font-bold text-xs uppercase">Удалить</button>
             </div>
         </div>
     </div>
 
-    <!-- Toast Component -->
     <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] glass-card px-6 py-3 rounded-2xl flex items-center gap-3 shadow-2xl pointer-events-none">
-        <div class="w-2 h-2 rounded-full bg-[var(--p-accent)] animate-pulse"></div>
-        <span id="toast-msg" class="text-xs font-bold uppercase tracking-wider">Готово</span>
+        <span id="toast-msg" class="text-[10px] font-bold uppercase tracking-wider">Сохранено</span>
     </div>
 
     <script>
-        // --- Application State ---
         let entries = JSON.parse(localStorage.getItem('ms_entries') || '[]');
         let selectedMood = 3;
         let selectedStress = 1;
@@ -304,20 +293,18 @@
         let currentTheme = localStorage.getItem('ms_theme') || 'lavender';
         let chart = null;
         let calDate = new Date();
-        let deleteTargetId = null;
+        let deleteId = null;
 
         const moodMap = { 1:'😫', 2:'😕', 3:'😐', 4:'😊', 5:'🤩' };
-        const moodColors = { 1:'#EF4444', 2:'#F97316', 3:'#FBBF24', 4:'#22C55E', 5:'#3B82F6' };
         const synth = new Tone.Synth({ oscillator: { type: "sine" }, envelope: { attack: 0.001, release: 0.1 } }).toDestination();
 
-        // --- Utilities ---
         function playClick() { if (Tone.context.state !== 'running') Tone.start(); synth.triggerAttackRelease("C5", "32n", undefined, 0.05); }
 
         function showToast(msg) {
             const toast = document.getElementById('toast');
             document.getElementById('toast-msg').innerText = msg;
             toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 3000);
+            setTimeout(() => toast.classList.remove('show'), 2000);
         }
 
         function setNowTime() {
@@ -326,59 +313,40 @@
             document.getElementById('entry-date').value = now.toISOString().slice(0, 16);
         }
 
-        // --- Core Functions ---
-        function init() {
-            setNowTime();
-            document.getElementById('api-key').value = localStorage.getItem('ms_api') || '';
-            applyTheme(currentTheme);
-            applyDark(isDark);
-            updateUI();
-            lucide.createIcons();
-            document.querySelector('[data-mood="3"]').classList.add('active');
-            document.querySelector('[data-stress="1"]').classList.add('active');
-        }
-
         function applyTheme(t) {
             const colors = { lavender:'#8B5CF6', velvet:'#EF4444', pink:'#EC4899', ocean:'#0EA5E9' };
-            const hex = colors[t];
+            const hex = colors[t] || colors['lavender'];
             document.documentElement.style.setProperty('--p-accent', hex);
             document.documentElement.style.setProperty('--p-accent-light', hex + '15');
             currentTheme = t;
             localStorage.setItem('ms_theme', t);
             if(chart) renderChart();
+            lucide.createIcons();
         }
 
         function applyDark(d) {
             d ? document.documentElement.classList.add('dark') : document.documentElement.classList.remove('dark');
-            document.getElementById('theme-icon').setAttribute('data-lucide', d ? 'sun' : 'moon');
             isDark = d;
             localStorage.setItem('ms_dark', d);
-            lucide.createIcons();
+            const icon = document.getElementById('theme-icon');
+            if(icon) icon.setAttribute('data-lucide', d ? 'sun' : 'moon');
             if(chart) renderChart();
-        }
-
-        function updateUI() {
-            renderHistory();
-            renderCalendar();
-            renderChart();
+            lucide.createIcons();
         }
 
         function renderHistory() {
             const container = document.getElementById('history-container');
-            container.innerHTML = entries.length ? '' : '<p class="text-center py-10 opacity-40 italic text-sm">Здесь пока тихо...</p>';
-            entries.slice(0, 20).forEach(e => {
+            container.innerHTML = entries.length ? '' : '<p class="text-center py-10 opacity-40 italic text-sm">Пока пусто...</p>';
+            entries.forEach(e => {
                 const date = new Date(e.date);
                 const el = document.createElement('div');
-                el.className = 'glass-card p-4 rounded-2xl flex items-center gap-4 animate-in fade-in slide-in-from-bottom-2';
+                el.className = 'glass-card p-4 rounded-2xl flex items-center gap-4 animate-in fade-in slide-in-from-bottom-1';
                 el.innerHTML = `
                     <div class="text-2xl">${moodMap[e.mood]}</div>
                     <div class="flex-grow min-w-0">
                         <div class="flex justify-between items-center mb-1">
                             <span class="text-[9px] font-800 opacity-50 uppercase">${date.toLocaleDateString([], {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}</span>
-                            <div class="flex gap-2">
-                                <button onclick="editItem(${e.id})" class="hover:text-[var(--p-accent)]"><i data-lucide="edit-2" class="w-3 h-3"></i></button>
-                                <button onclick="askDelete(${e.id})" class="hover:text-red-500"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
-                            </div>
+                            <button onclick="askDelete(${e.id})" class="text-red-400 hover:text-red-600 transition-colors p-1"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
                         </div>
                         <p class="text-xs truncate opacity-80">${e.note || 'Без описания'}</p>
                     </div>
@@ -388,9 +356,15 @@
             lucide.createIcons();
         }
 
+        window.askDelete = (id) => {
+            deleteId = id;
+            document.getElementById('modal-delete').classList.remove('hidden');
+        };
+
         function renderCalendar() {
             const grid = document.getElementById('calendar-grid');
             const title = document.getElementById('cal-month-title');
+            if(!grid || !title) return;
             grid.innerHTML = '';
             const m = calDate.getMonth(); const y = calDate.getFullYear();
             title.innerText = calDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
@@ -400,38 +374,26 @@
             for (let i = 0; i < shift; i++) grid.innerHTML += '<div></div>';
             for (let d = 1; d <= days; d++) {
                 const dayStr = new Date(y, m, d).toDateString();
-                const dayEntries = entries.filter(e => new Date(e.date).toDateString() === dayStr);
-                let style = 'opacity-30';
-                if (dayEntries.length) {
-                    const avg = Math.round(dayEntries.reduce((a, b) => a + b.mood, 0) / dayEntries.length);
-                    style = `background: ${moodColors[avg]}; color: white; opacity: 1;`;
-                }
+                const has = entries.some(e => new Date(e.date).toDateString() === dayStr);
                 const isToday = new Date().toDateString() === dayStr;
-                grid.innerHTML += `<div onclick="setEntryDate(${y}, ${m}, ${d})" class="aspect-square flex items-center justify-center text-[10px] font-bold rounded-lg cursor-pointer ${isToday ? 'ring-2 ring-[var(--p-accent)] opacity-100' : ''}" style="${style}">${d}</div>`;
+                grid.innerHTML += `<div class="aspect-square flex items-center justify-center text-[10px] font-bold rounded-lg ${has ? 'bg-[var(--p-accent)] text-white' : 'opacity-20'} ${isToday ? 'ring-2 ring-[var(--p-accent)]' : ''}">${d}</div>`;
             }
         }
 
-        function setEntryDate(y, m, d) {
-            const now = new Date();
-            const dt = new Date(y, m, d, now.getHours(), now.getMinutes());
-            dt.setMinutes(dt.getMinutes() - dt.getTimezoneOffset());
-            document.getElementById('entry-date').value = dt.toISOString().slice(0, 16);
-            playClick();
-        }
-
         function renderChart() {
-            const ctx = document.getElementById('main-chart').getContext('2d');
+            const canvas = document.getElementById('main-chart');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
             const accent = getComputedStyle(document.documentElement).getPropertyValue('--p-accent').trim();
             if (chart) chart.destroy();
-
-            let labels = [];
-            let dataPoints = [];
+            
+            let labels = []; 
+            let dataPoints = []; 
             const now = new Date();
 
             if (currentRange === 'week') {
-                const start = new Date(now);
-                start.setDate(now.getDate() - 6 + (weekOffset * 7));
-                document.getElementById('range-text').innerText = `${start.getDate()} ${start.toLocaleDateString('ru', {month:'short'})} - Окно`;
+                const start = new Date(now); start.setDate(now.getDate() - 6 + (weekOffset * 7));
+                document.getElementById('range-text').innerText = `${start.getDate()} ${start.toLocaleDateString('ru', {month:'short'})} - ${new Date(start.getTime() + 6*86400000).getDate()} ${new Date(start.getTime() + 6*86400000).toLocaleDateString('ru', {month:'short'})}`;
                 for(let i=0; i<7; i++) {
                     const cur = new Date(start); cur.setDate(start.getDate() + i);
                     labels.push(cur.toLocaleDateString('ru', {weekday: 'short'}));
@@ -451,7 +413,7 @@
             }
 
             const gradient = ctx.createLinearGradient(0, 0, 0, 250);
-            gradient.addColorStop(0, accent + '80');
+            gradient.addColorStop(0, accent + '40');
             gradient.addColorStop(1, accent + '00');
 
             chart = new Chart(ctx, {
@@ -471,179 +433,150 @@
                     }]
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
+                    responsive: true, maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
-                    scales: {
-                        y: { min: 1, max: 5, grid: { display: false }, ticks: { stepSize: 1, color: isDark ? '#ffffff40' : '#00000040' } },
-                        x: { grid: { display: false }, ticks: { color: isDark ? '#ffffff40' : '#00000040', font: { size: 10 } } }
+                    scales: { 
+                        y: { min: 1, max: 5, grid: { color: isDark ? '#ffffff10' : '#00000005' }, ticks: { stepSize: 1, color: isDark ? '#ffffff40' : '#00000040' } }, 
+                        x: { grid: { display: false }, ticks: { color: isDark ? '#ffffff40' : '#00000040' } } 
                     }
                 }
             });
         }
 
-        // --- AI Engine ---
-        async function updateAI(type = 'auto') {
+        // --- ИСПРАВЛЕННАЯ ЛОГИКА AI ---
+        async function fetchAI(prompt) {
             const api = localStorage.getItem('ms_api');
-            const box = document.getElementById('ai-text');
-            const ico = document.getElementById('ai-icon');
+            if (!api) return "Подключите ключ Gemini в настройках.";
             
-            if (ico) ico.classList.add('anim-rotate');
-            box.classList.add('loading-pulse');
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${api}`;
+            
+            const payload = {
+                contents: [{
+                    parts: [{ text: prompt }]
+                }]
+            };
 
-            if (!api || api.trim() === '') {
-                box.innerText = "Подключите Gemini API ключ в настройках, чтобы AI мог анализировать ваши данные.";
-                box.classList.remove('loading-pulse');
-                if (ico) ico.classList.remove('anim-rotate');
-                return;
-            }
-
-            if (!entries.length && type !== 'question') {
-                box.innerText = "Добавьте несколько записей в дневник для анализа вашего настроения.";
-                box.classList.remove('loading-pulse');
-                if (ico) ico.classList.remove('anim-rotate');
-                return;
-            }
-
-            try {
-                const recent = entries.slice(0, 15).map(e => ({
-                    date: e.date,
-                    mood: moodMap[e.mood],
-                    stress: e.stress,
-                    note: e.note
-                }));
-
-                let prompt = "";
-                if (type === 'advice') {
-                    prompt = `Ты профессиональный психолог и коуч. На основе последних записей пользователя в дневнике: ${JSON.stringify(recent)}. 
-                    Дай развернутый, глубокий и поддерживающий совет (около 300-500 символов), который поможет пользователю улучшить состояние или закрепить успех. 
-                    Пиши простым, человечным языком, БЕЗ использования Markdown (жирный текст, заголовки, списки запрещены). Прямой текст.`;
-                } else if (type === 'question') {
-                    prompt = `Сгенерируй один глубокий коучинговый вопрос для саморефлексии на сегодня. Он должен быть направлен на развитие личности и понимание своих эмоций. 
-                    Объем вопроса: 150-300 символов, чтобы он был содержательным. БЕЗ Markdown.`;
-                } else {
-                    prompt = `Проанализируй записи дневника: ${JSON.stringify(recent)}. Напиши краткое приветствие и общий эмоциональный итог пользователя за последние дни (до 200 символов). БЕЗ Markdown.`;
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const result = await response.json();
+                    return result.candidates?.[0]?.content?.parts?.[0]?.text || "AI не смог сформулировать ответ.";
+                } catch (e) {
+                    if (i === 4) throw e;
+                    await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
                 }
-
-                // Используем модель gemini-1.5-flash как самую стабильную
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${api}`;
-                
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }]
-                    })
-                });
-
-                if (!response.ok) {
-                    const errData = await response.json();
-                    console.error("AI API Error:", errData);
-                    throw new Error("API Connection Failed");
-                }
-
-                const data = await response.json();
-                const aiResponseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                
-                if (aiResponseText) {
-                    box.innerText = aiResponseText.trim();
-                } else {
-                    box.innerText = "Сейчас хороший момент, чтобы просто побыть в тишине и прислушаться к себе.";
-                }
-            } catch (error) {
-                console.error("AI Error:", error);
-                box.innerText = "Не удалось связаться с AI. Проверьте ключ в настройках или попробуйте позже (возможно, превышен лимит запросов).";
-            } finally {
-                box.classList.remove('loading-pulse');
-                if (ico) ico.classList.remove('anim-rotate');
             }
         }
 
-        // --- Interaction Handlers ---
-        window.askDelete = (id) => { deleteTargetId = id; document.getElementById('confirm-modal').classList.remove('hidden'); };
-        
-        window.editItem = (id) => {
-            const e = entries.find(x => x.id === id);
-            if (!e) return;
-            document.getElementById('editing-id').value = e.id;
-            document.getElementById('mood-note').value = e.note;
-            const dt = new Date(e.date);
-            dt.setMinutes(dt.getMinutes() - dt.getTimezoneOffset());
-            document.getElementById('entry-date').value = dt.toISOString().slice(0, 16);
+        async function updateAI(type = 'auto') {
+            const box = document.getElementById('ai-text');
+            const ico = document.getElementById('ai-icon');
             
-            document.querySelectorAll('.mood-btn, .stress-btn').forEach(b => b.classList.remove('active'));
-            const moodBtn = document.querySelector(`[data-mood="${e.mood}"]`);
-            if(moodBtn) moodBtn.classList.add('active');
-            const stressBtn = document.querySelector(`[data-stress="${e.stress || 1}"]`);
-            if(stressBtn) stressBtn.classList.add('active');
+            ico?.classList.add('anim-rotate');
+            box.classList.add('loading-pulse');
             
-            selectedMood = e.mood; 
-            selectedStress = e.stress || 1;
-            document.getElementById('save-entry').innerText = 'Обновить запись';
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        };
+            try {
+                const historyStr = entries.slice(0, 10).map(e => `Настроение: ${e.mood}, Стресс: ${e.stress}, Заметка: ${e.note}`).join('; ');
+                let prompt = "";
+                
+                if (type === 'advice') {
+                    prompt = `Ты — эмпатичный ИИ-психолог. Проанализируй данные: ${historyStr || 'Данных пока мало'}. Дай один теплый совет для улучшения состояния (макс 400 симв). Без Markdown.`;
+                } else if (type === 'question') {
+                    prompt = `Придумай один глубокий вопрос для саморефлексии на сегодня (макс 250 симв). Без Markdown.`;
+                } else {
+                    prompt = `Кратко прокомментируй последние записи пользователя (макс 200 симв). Без Markdown.`;
+                }
 
-        document.getElementById('confirm-yes').addEventListener('click', () => {
-            entries = entries.filter(e => e.id !== deleteTargetId);
-            localStorage.setItem('ms_entries', JSON.stringify(entries));
-            updateUI();
-            document.getElementById('confirm-modal').classList.add('hidden');
-            showToast("Запись удалена");
-        });
-        
-        document.getElementById('confirm-cancel').addEventListener('click', () => document.getElementById('confirm-modal').classList.add('hidden'));
+                const response = await fetchAI(prompt);
+                box.innerText = response;
+            } catch (err) {
+                box.innerText = "Ошибка API. Проверьте соединение или ключ.";
+            } finally {
+                box.classList.remove('loading-pulse');
+                ico?.classList.remove('anim-rotate');
+            }
+        }
 
+        function updateUI() {
+            renderHistory();
+            renderCalendar();
+            renderChart();
+        }
+
+        // --- ОБРАБОТЧИКИ СОБЫТИЙ ---
         document.getElementById('save-entry').addEventListener('click', () => {
-            const note = document.getElementById('mood-note').value;
-            const dateStr = document.getElementById('entry-date').value;
-            const eid = document.getElementById('editing-id').value;
-            
-            const entry = { 
-                id: eid ? parseInt(eid) : Date.now(), 
-                mood: selectedMood, 
-                stress: selectedStress, 
-                note, 
-                date: new Date(dateStr).toISOString() 
+            const entry = {
+                id: Date.now(),
+                mood: selectedMood,
+                stress: selectedStress,
+                note: document.getElementById('mood-note').value,
+                date: new Date(document.getElementById('entry-date').value).toISOString()
             };
-            
-            if (eid) entries = entries.map(x => x.id == eid ? entry : x);
-            else entries.unshift(entry);
-            
-            entries.sort((a,b) => new Date(b.date) - new Date(a.date));
+            entries.unshift(entry);
             localStorage.setItem('ms_entries', JSON.stringify(entries));
-            
             document.getElementById('mood-note').value = '';
-            document.getElementById('editing-id').value = '';
-            document.getElementById('save-entry').innerText = 'Сохранить запись';
+            updateUI(); playClick(); showToast("Запись сохранена");
             setNowTime();
-            updateUI(); 
-            playClick();
-            showToast(eid ? "Запись обновлена" : "Запись сохранена");
         });
 
-        document.getElementById('save-settings').addEventListener('click', () => {
-            localStorage.setItem('ms_api', document.getElementById('api-key').value.trim());
-            document.getElementById('modal-settings').classList.add('hidden');
-            updateAI('auto'); 
+        document.getElementById('ai-copy').addEventListener('click', () => {
+            const text = document.getElementById('ai-text').innerText;
+            const temp = document.createElement('textarea');
+            temp.value = text;
+            document.body.appendChild(temp);
+            temp.select();
+            document.execCommand('copy');
+            document.body.removeChild(temp);
+            showToast("Скопировано!");
             playClick();
-            showToast("Настройки сохранены");
         });
 
-        document.getElementById('import-input').addEventListener('change', (e) => {
+        document.getElementById('confirm-delete-ok').addEventListener('click', () => {
+            if (deleteId) {
+                entries = entries.filter(e => e.id !== deleteId);
+                localStorage.setItem('ms_entries', JSON.stringify(entries));
+                updateUI();
+                showToast("Удалено");
+                playClick();
+            }
+            document.getElementById('modal-delete').classList.add('hidden');
+        });
+
+        document.getElementById('confirm-delete-cancel').addEventListener('click', () => {
+            document.getElementById('modal-delete').classList.add('hidden');
+        });
+
+        document.getElementById('export-btn').addEventListener('click', () => {
+            const data = JSON.stringify(entries);
+            const blob = new Blob([data], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'mindspace_data.json';
+            a.click();
+            showToast("Файл скачан");
+        });
+
+        document.getElementById('import-btn-trigger').addEventListener('click', () => document.getElementById('import-file').click());
+        document.getElementById('import-file').addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
             reader.onload = (ev) => {
                 try {
-                    const imported = JSON.parse(ev.target.result);
-                    if (Array.isArray(imported)) {
-                        entries = [...imported, ...entries].filter((v,i,a) => a.findIndex(t => (t.id === v.id)) === i);
-                        entries.sort((a,b) => new Date(b.date) - new Date(a.date));
+                    const data = JSON.parse(ev.target.result);
+                    if (Array.isArray(data)) {
+                        entries = data;
                         localStorage.setItem('ms_entries', JSON.stringify(entries));
                         updateUI();
-                        showToast("Данные импортированы");
+                        showToast("Импорт успешен");
                     }
-                } catch(err) { showToast("Ошибка в файле"); }
+                } catch(e) { showToast("Ошибка импорта"); }
             };
             reader.readAsText(file);
         });
@@ -660,35 +593,55 @@
             b.classList.add('active'); selectedStress = parseInt(b.dataset.stress); playClick();
         });
 
-        document.getElementById('theme-toggle').addEventListener('click', () => { applyDark(!isDark); playClick(); });
-        document.getElementById('settings-btn').addEventListener('click', () => { document.getElementById('modal-settings').classList.remove('hidden'); playClick(); });
-        document.getElementById('close-modal').addEventListener('click', () => document.getElementById('modal-settings').classList.add('hidden'));
-        document.getElementById('theme-selector').addEventListener('click', (e) => {
-            const b = e.target.closest('button'); if(b) applyTheme(b.dataset.t);
+        document.getElementById('btn-show-mood').addEventListener('click', () => {
+            activeGraph = 'mood';
+            document.getElementById('btn-show-mood').classList.add('active');
+            document.getElementById('btn-show-stress').classList.remove('active');
+            renderChart(); playClick();
         });
 
-        document.getElementById('btn-show-mood').addEventListener('click', () => { activeGraph = 'mood'; document.getElementById('btn-show-mood').classList.add('active'); document.getElementById('btn-show-stress').classList.remove('active'); renderChart(); });
-        document.getElementById('btn-show-stress').addEventListener('click', () => { activeGraph = 'stress'; document.getElementById('btn-show-stress').classList.add('active'); document.getElementById('btn-show-mood').classList.remove('active'); renderChart(); });
-        
+        document.getElementById('btn-show-stress').addEventListener('click', () => {
+            activeGraph = 'stress';
+            document.getElementById('btn-show-stress').classList.add('active');
+            document.getElementById('btn-show-mood').classList.remove('active');
+            renderChart(); playClick();
+        });
+
+        document.getElementById('theme-toggle').addEventListener('click', () => { applyDark(!isDark); playClick(); });
+        document.getElementById('theme-selector').addEventListener('click', (e) => {
+            const b = e.target.closest('button');
+            if(b) { applyTheme(b.dataset.t); playClick(); }
+        });
+
         document.getElementById('range-select').addEventListener('change', (e) => { currentRange = e.target.value; weekOffset = 0; monthOffset = 0; renderChart(); });
         document.getElementById('range-prev').addEventListener('click', () => { currentRange === 'week' ? weekOffset-- : monthOffset--; renderChart(); });
         document.getElementById('range-next').addEventListener('click', () => { currentRange === 'week' ? weekOffset++ : monthOffset++; renderChart(); });
-        
         document.getElementById('cal-prev').addEventListener('click', () => { calDate.setMonth(calDate.getMonth()-1); renderCalendar(); });
         document.getElementById('cal-next').addEventListener('click', () => { calDate.setMonth(calDate.getMonth()+1); renderCalendar(); });
-        
-        document.getElementById('ai-refresh').addEventListener('click', () => { updateAI('auto'); playClick(); });
-        document.getElementById('ai-get-advice').addEventListener('click', () => { updateAI('advice'); playClick(); });
-        document.getElementById('ai-get-question').addEventListener('click', () => { updateAI('question'); playClick(); });
-
-        document.getElementById('export-btn').addEventListener('click', () => {
-            const blob = new Blob([JSON.stringify(entries)], {type:'application/json'});
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'mindspace_backup.json'; a.click();
-            showToast("Экспорт завершен");
+        document.getElementById('settings-btn').addEventListener('click', () => document.getElementById('modal-settings').classList.remove('hidden'));
+        document.getElementById('close-modal').addEventListener('click', () => document.getElementById('modal-settings').classList.add('hidden'));
+        document.getElementById('save-settings').addEventListener('click', () => {
+            localStorage.setItem('ms_api', document.getElementById('api-key').value.trim());
+            document.getElementById('modal-settings').classList.add('hidden');
+            showToast("Сохранено");
+            playClick();
         });
 
-        init();
+        document.getElementById('ai-refresh').addEventListener('click', () => updateAI('auto'));
+        document.getElementById('ai-get-advice').addEventListener('click', () => updateAI('advice'));
+        document.getElementById('ai-get-question').addEventListener('click', () => updateAI('question'));
+
+        function init() {
+            setNowTime();
+            document.getElementById('api-key').value = localStorage.getItem('ms_api') || '';
+            applyTheme(currentTheme);
+            applyDark(isDark);
+            updateUI();
+            document.querySelector('[data-mood="3"]').classList.add('active');
+            document.querySelector('[data-stress="1"]').classList.add('active');
+        }
+
+        window.onload = init;
     </script>
 </body>
 </html>
-
