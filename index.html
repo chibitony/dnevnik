@@ -88,6 +88,13 @@
             background-color: rgba(0, 0, 0, 0.4);
             backdrop-filter: blur(4px);
         }
+
+        /* Цвета настроений для календаря */
+        .mood-1 { background-color: #ef4444 !important; color: white !important; }
+        .mood-2 { background-color: #f97316 !important; color: white !important; }
+        .mood-3 { background-color: #facc15 !important; color: white !important; }
+        .mood-4 { background-color: #4ade80 !important; color: white !important; }
+        .mood-5 { background-color: #3b82f6 !important; color: white !important; }
     </style>
 </head>
 <body class="min-h-screen pb-10">
@@ -114,8 +121,11 @@
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <!-- Left Side -->
             <div class="lg:col-span-5 space-y-6">
-                <div class="glass-card p-6 rounded-[2rem]">
-                    <h2 class="text-xl font-700 mb-6 flex items-center gap-2"><i data-lucide="heart"></i> Состояние</h2>
+                <div class="glass-card p-6 rounded-[2rem] border-2 border-transparent transition-all" id="entry-form-container">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 id="form-title" class="text-xl font-700 flex items-center gap-2"><i data-lucide="heart"></i> Состояние</h2>
+                        <button id="cancel-edit" class="hidden text-xs font-bold text-red-500 uppercase tracking-widest">Отмена</button>
+                    </div>
                     
                     <div class="mb-6 bg-[var(--p-bg)] p-3 rounded-2xl flex items-center gap-3">
                         <i data-lucide="calendar" class="w-4 h-4 opacity-50"></i>
@@ -213,13 +223,12 @@
                             <span>Вопрос дня</span>
                         </button>
                     </div>
-
                     <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-[var(--p-accent)] opacity-[0.05] blur-[60px] rounded-full"></div>
                 </div>
 
                 <!-- History -->
                 <div class="glass-card p-6 rounded-[2.5rem] flex flex-col h-[400px]">
-                    <h3 class="font-700 mb-4 flex items-center gap-2"><i data-lucide="history"></i> История</h3>
+                    <h3 class="font-700 mb-4 flex items-center gap-2"><i data-lucide="history"></i> История <span class="text-[10px] opacity-40 font-normal">(нажмите для правки)</span></h3>
                     <div id="history-container" class="space-y-3 overflow-y-auto custom-scrollbar pr-2 flex-grow"></div>
                 </div>
             </div>
@@ -230,7 +239,7 @@
     <div id="modal-settings" class="fixed inset-0 modal-overlay z-50 hidden flex items-center justify-center p-4">
         <div class="glass-card w-full max-w-sm rounded-[2.5rem] p-8">
             <div class="flex justify-between items-center mb-8">
-                <h2 class="text-2xl font-800 tracking-tight tracking-tight">Настройки</h2>
+                <h2 class="text-2xl font-800 tracking-tight">Настройки</h2>
                 <button id="close-modal" class="p-2 hover:scale-110 transition-transform"><i data-lucide="x"></i></button>
             </div>
             <div class="space-y-6">
@@ -294,6 +303,7 @@
         let chart = null;
         let calDate = new Date();
         let deleteId = null;
+        let editId = null; // Для редактирования
 
         const moodMap = { 1:'😫', 2:'😕', 3:'😐', 4:'😊', 5:'🤩' };
         const synth = new Tone.Synth({ oscillator: { type: "sine" }, envelope: { attack: 0.001, release: 0.1 } }).toDestination();
@@ -334,13 +344,64 @@
             lucide.createIcons();
         }
 
+        // РЕДАКТИРОВАНИЕ
+        window.startEdit = (id) => {
+            const entry = entries.find(e => e.id === id);
+            if (!entry) return;
+            editId = id;
+            
+            // Заполняем форму
+            document.getElementById('mood-note').value = entry.note;
+            selectedMood = entry.mood;
+            selectedStress = entry.stress;
+            
+            // Форматируем дату для input
+            const date = new Date(entry.date);
+            date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+            document.getElementById('entry-date').value = date.toISOString().slice(0, 16);
+
+            // Обновляем кнопки в форме
+            document.querySelectorAll('.mood-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.mood) === selectedMood));
+            document.querySelectorAll('.stress-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.stress) === selectedStress));
+
+            // UI формы
+            document.getElementById('form-title').innerHTML = '<i data-lucide="edit-3"></i> Правка записи';
+            document.getElementById('save-entry').innerText = 'Обновить запись';
+            document.getElementById('cancel-edit').classList.remove('hidden');
+            document.getElementById('entry-form-container').classList.add('border-[var(--p-accent)]');
+            
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            lucide.createIcons();
+            playClick();
+        };
+
+        function resetForm() {
+            editId = null;
+            document.getElementById('mood-note').value = '';
+            document.getElementById('form-title').innerHTML = '<i data-lucide="heart"></i> Состояние';
+            document.getElementById('save-entry').innerText = 'Сохранить запись';
+            document.getElementById('cancel-edit').classList.add('hidden');
+            document.getElementById('entry-form-container').classList.remove('border-[var(--p-accent)]');
+            setNowTime();
+            selectedMood = 3;
+            selectedStress = 1;
+            document.querySelectorAll('.mood-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.mood) === 3));
+            document.querySelectorAll('.stress-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.stress) === 1));
+            lucide.createIcons();
+        }
+
+        document.getElementById('cancel-edit').addEventListener('click', resetForm);
+
         function renderHistory() {
             const container = document.getElementById('history-container');
             container.innerHTML = entries.length ? '' : '<p class="text-center py-10 opacity-40 italic text-sm">Пока пусто...</p>';
             entries.forEach(e => {
                 const date = new Date(e.date);
                 const el = document.createElement('div');
-                el.className = 'glass-card p-4 rounded-2xl flex items-center gap-4 animate-in fade-in slide-in-from-bottom-1';
+                el.className = 'glass-card p-4 rounded-2xl flex items-center gap-4 cursor-pointer hover:border-[var(--p-accent)] transition-all';
+                el.onclick = (event) => {
+                    if (!event.target.closest('button')) startEdit(e.id);
+                };
                 el.innerHTML = `
                     <div class="text-2xl">${moodMap[e.mood]}</div>
                     <div class="flex-grow min-w-0">
@@ -361,6 +422,7 @@
             document.getElementById('modal-delete').classList.remove('hidden');
         };
 
+        // КАЛЕНДАРЬ С ЦВЕТАМИ
         function renderCalendar() {
             const grid = document.getElementById('calendar-grid');
             const title = document.getElementById('cal-month-title');
@@ -368,15 +430,32 @@
             grid.innerHTML = '';
             const m = calDate.getMonth(); const y = calDate.getFullYear();
             title.innerText = calDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+            
             const first = new Date(y, m, 1).getDay();
             const shift = (first === 0 ? 6 : first - 1);
             const days = new Date(y, m + 1, 0).getDate();
+            
             for (let i = 0; i < shift; i++) grid.innerHTML += '<div></div>';
+            
             for (let d = 1; d <= days; d++) {
-                const dayStr = new Date(y, m, d).toDateString();
-                const has = entries.some(e => new Date(e.date).toDateString() === dayStr);
+                const curDate = new Date(y, m, d);
+                const dayStr = curDate.toDateString();
+                
+                // Находим все записи за этот день и берем среднее настроение
+                const dayEntries = entries.filter(e => new Date(e.date).toDateString() === dayStr);
+                let moodClass = '';
+                if (dayEntries.length > 0) {
+                    const avgMood = Math.round(dayEntries.reduce((sum, e) => sum + e.mood, 0) / dayEntries.length);
+                    moodClass = `mood-${avgMood}`;
+                }
+
                 const isToday = new Date().toDateString() === dayStr;
-                grid.innerHTML += `<div class="aspect-square flex items-center justify-center text-[10px] font-bold rounded-lg ${has ? 'bg-[var(--p-accent)] text-white' : 'opacity-20'} ${isToday ? 'ring-2 ring-[var(--p-accent)]' : ''}">${d}</div>`;
+                grid.innerHTML += `
+                    <div class="aspect-square flex items-center justify-center text-[10px] font-bold rounded-lg transition-all 
+                        ${moodClass ? moodClass : 'opacity-20'} 
+                        ${isToday ? 'ring-2 ring-[var(--p-accent)] ring-offset-2' : ''}">
+                        ${d}
+                    </div>`;
             }
         }
 
@@ -443,26 +522,14 @@
             });
         }
 
-        // --- ИСПРАВЛЕННАЯ ЛОГИКА AI ---
         async function fetchAI(prompt) {
             const api = localStorage.getItem('ms_api');
             if (!api) return "Подключите ключ Gemini в настройках.";
-            
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${api}`;
-            
-            const payload = {
-                contents: [{
-                    parts: [{ text: prompt }]
-                }]
-            };
-
+            const payload = { contents: [{ parts: [{ text: prompt }] }] };
             for (let i = 0; i < 5; i++) {
                 try {
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
+                    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     const result = await response.json();
                     return result.candidates?.[0]?.content?.parts?.[0]?.text || "AI не смог сформулировать ответ.";
@@ -476,30 +543,18 @@
         async function updateAI(type = 'auto') {
             const box = document.getElementById('ai-text');
             const ico = document.getElementById('ai-icon');
-            
             ico?.classList.add('anim-rotate');
             box.classList.add('loading-pulse');
-            
             try {
                 const historyStr = entries.slice(0, 10).map(e => `Настроение: ${e.mood}, Стресс: ${e.stress}, Заметка: ${e.note}`).join('; ');
                 let prompt = "";
-                
-                if (type === 'advice') {
-                    prompt = `Ты — эмпатичный ИИ-психолог. Проанализируй данные: ${historyStr || 'Данных пока мало'}. Дай один теплый совет для улучшения состояния (макс 400 симв). Без Markdown.`;
-                } else if (type === 'question') {
-                    prompt = `Придумай один глубокий вопрос для саморефлексии на сегодня (макс 250 симв). Без Markdown.`;
-                } else {
-                    prompt = `Кратко прокомментируй последние записи пользователя (макс 200 симв). Без Markdown.`;
-                }
-
+                if (type === 'advice') prompt = `Ты — эмпатичный ИИ-психолог. Проанализируй данные: ${historyStr || 'Данных пока мало'}. Дай один теплый совет для улучшения состояния (макс 400 симв). Без Markdown.`;
+                else if (type === 'question') prompt = `Придумай один глубокий вопрос для саморефлексии на сегодня (макс 250 симв). Без Markdown.`;
+                else prompt = `Кратко прокомментируй последние записи пользователя (макс 200 симв). Без Markdown.`;
                 const response = await fetchAI(prompt);
                 box.innerText = response;
-            } catch (err) {
-                box.innerText = "Ошибка API. Проверьте соединение или ключ.";
-            } finally {
-                box.classList.remove('loading-pulse');
-                ico?.classList.remove('anim-rotate');
-            }
+            } catch (err) { box.innerText = "Ошибка API. Проверьте ключ."; }
+            finally { box.classList.remove('loading-pulse'); ico?.classList.remove('anim-rotate'); }
         }
 
         function updateUI() {
@@ -508,20 +563,28 @@
             renderChart();
         }
 
-        // --- ОБРАБОТЧИКИ СОБЫТИЙ ---
+        // СОХРАНЕНИЕ / ОБНОВЛЕНИЕ
         document.getElementById('save-entry').addEventListener('click', () => {
-            const entry = {
-                id: Date.now(),
+            const newEntry = {
+                id: editId || Date.now(),
                 mood: selectedMood,
                 stress: selectedStress,
                 note: document.getElementById('mood-note').value,
                 date: new Date(document.getElementById('entry-date').value).toISOString()
             };
-            entries.unshift(entry);
+
+            if (editId) {
+                entries = entries.map(e => e.id === editId ? newEntry : e);
+                showToast("Запись обновлена");
+            } else {
+                entries.unshift(newEntry);
+                showToast("Запись сохранена");
+            }
+            
             localStorage.setItem('ms_entries', JSON.stringify(entries));
-            document.getElementById('mood-note').value = '';
-            updateUI(); playClick(); showToast("Запись сохранена");
-            setNowTime();
+            resetForm();
+            updateUI();
+            playClick();
         });
 
         document.getElementById('ai-copy').addEventListener('click', () => {
@@ -540,6 +603,7 @@
             if (deleteId) {
                 entries = entries.filter(e => e.id !== deleteId);
                 localStorage.setItem('ms_entries', JSON.stringify(entries));
+                if (editId === deleteId) resetForm();
                 updateUI();
                 showToast("Удалено");
                 playClick();
@@ -552,12 +616,10 @@
         });
 
         document.getElementById('export-btn').addEventListener('click', () => {
-            const data = JSON.stringify(entries);
-            const blob = new Blob([data], {type: 'application/json'});
-            const url = URL.createObjectURL(blob);
+            const blob = new Blob([JSON.stringify(entries)], {type: 'application/json'});
             const a = document.createElement('a');
-            a.href = url;
-            a.download = 'mindspace_data.json';
+            a.href = URL.createObjectURL(blob);
+            a.download = 'mindspace_backup.json';
             a.click();
             showToast("Файл скачан");
         });
@@ -645,3 +707,4 @@
     </script>
 </body>
 </html>
+
