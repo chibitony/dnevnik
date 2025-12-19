@@ -267,6 +267,7 @@
                 <div>
                     <label class="block text-[10px] font-bold uppercase opacity-50 mb-3 tracking-widest">Gemini API Key</label>
                     <input type="password" id="api-key" placeholder="AI ключ..." class="w-full p-4 rounded-2xl bg-[var(--p-bg)] outline-none border-none text-sm focus:ring-2 focus:ring-[var(--p-accent)]">
+                    <p class="text-[9px] mt-2 opacity-50">Ключ сохраняется локально в вашем браузере.</p>
                 </div>
                 <button id="save-settings" class="w-full py-4 rounded-2xl btn-primary font-800 shadow-lg transition-all active:scale-95">Сохранить</button>
             </div>
@@ -303,7 +304,7 @@
         let chart = null;
         let calDate = new Date();
         let deleteId = null;
-        let editId = null; // Для редактирования
+        let editId = null;
 
         const moodMap = { 1:'😫', 2:'😕', 3:'😐', 4:'😊', 5:'🤩' };
         const synth = new Tone.Synth({ oscillator: { type: "sine" }, envelope: { attack: 0.001, release: 0.1 } }).toDestination();
@@ -344,32 +345,22 @@
             lucide.createIcons();
         }
 
-        // РЕДАКТИРОВАНИЕ
         window.startEdit = (id) => {
             const entry = entries.find(e => e.id === id);
             if (!entry) return;
             editId = id;
-            
-            // Заполняем форму
             document.getElementById('mood-note').value = entry.note;
             selectedMood = entry.mood;
             selectedStress = entry.stress;
-            
-            // Форматируем дату для input
             const date = new Date(entry.date);
             date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
             document.getElementById('entry-date').value = date.toISOString().slice(0, 16);
-
-            // Обновляем кнопки в форме
             document.querySelectorAll('.mood-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.mood) === selectedMood));
             document.querySelectorAll('.stress-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.stress) === selectedStress));
-
-            // UI формы
             document.getElementById('form-title').innerHTML = '<i data-lucide="edit-3"></i> Правка записи';
             document.getElementById('save-entry').innerText = 'Обновить запись';
             document.getElementById('cancel-edit').classList.remove('hidden');
             document.getElementById('entry-form-container').classList.add('border-[var(--p-accent)]');
-            
             window.scrollTo({ top: 0, behavior: 'smooth' });
             lucide.createIcons();
             playClick();
@@ -422,7 +413,6 @@
             document.getElementById('modal-delete').classList.remove('hidden');
         };
 
-        // КАЛЕНДАРЬ С ЦВЕТАМИ
         function renderCalendar() {
             const grid = document.getElementById('calendar-grid');
             const title = document.getElementById('cal-month-title');
@@ -430,25 +420,19 @@
             grid.innerHTML = '';
             const m = calDate.getMonth(); const y = calDate.getFullYear();
             title.innerText = calDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
-            
             const first = new Date(y, m, 1).getDay();
             const shift = (first === 0 ? 6 : first - 1);
             const days = new Date(y, m + 1, 0).getDate();
-            
             for (let i = 0; i < shift; i++) grid.innerHTML += '<div></div>';
-            
             for (let d = 1; d <= days; d++) {
                 const curDate = new Date(y, m, d);
                 const dayStr = curDate.toDateString();
-                
-                // Находим все записи за этот день и берем среднее настроение
                 const dayEntries = entries.filter(e => new Date(e.date).toDateString() === dayStr);
                 let moodClass = '';
                 if (dayEntries.length > 0) {
                     const avgMood = Math.round(dayEntries.reduce((sum, e) => sum + e.mood, 0) / dayEntries.length);
                     moodClass = `mood-${avgMood}`;
                 }
-
                 const isToday = new Date().toDateString() === dayStr;
                 grid.innerHTML += `
                     <div class="aspect-square flex items-center justify-center text-[10px] font-bold rounded-lg transition-all 
@@ -465,11 +449,9 @@
             const ctx = canvas.getContext('2d');
             const accent = getComputedStyle(document.documentElement).getPropertyValue('--p-accent').trim();
             if (chart) chart.destroy();
-            
             let labels = []; 
             let dataPoints = []; 
             const now = new Date();
-
             if (currentRange === 'week') {
                 const start = new Date(now); start.setDate(now.getDate() - 6 + (weekOffset * 7));
                 document.getElementById('range-text').innerText = `${start.getDate()} ${start.toLocaleDateString('ru', {month:'short'})} - ${new Date(start.getTime() + 6*86400000).getDate()} ${new Date(start.getTime() + 6*86400000).toLocaleDateString('ru', {month:'short'})}`;
@@ -490,11 +472,9 @@
                     dataPoints.push(match.length ? match.reduce((a,b) => a + (activeGraph==='mood'?b.mood:b.stress), 0)/match.length : null);
                 }
             }
-
             const gradient = ctx.createLinearGradient(0, 0, 0, 250);
             gradient.addColorStop(0, accent + '40');
             gradient.addColorStop(1, accent + '00');
-
             chart = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -524,17 +504,28 @@
 
         async function fetchAI(prompt) {
             const api = localStorage.getItem('ms_api');
-            if (!api) return "Подключите ключ Gemini в настройках.";
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${api}`;
+            if (!api || api.trim() === "") return "Ключ API не найден. Проверьте настройки.";
+            
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${api.trim()}`;
             const payload = { contents: [{ parts: [{ text: prompt }] }] };
+            
             for (let i = 0; i < 5; i++) {
                 try {
-                    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const response = await fetch(url, { 
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/json' }, 
+                        body: JSON.stringify(payload) 
+                    });
+                    
+                    if (!response.ok) {
+                        const errBody = await response.json().catch(() => ({}));
+                        throw new Error(`Code ${response.status}: ${errBody.error?.message || response.statusText}`);
+                    }
+                    
                     const result = await response.json();
-                    return result.candidates?.[0]?.content?.parts?.[0]?.text || "AI не смог сформулировать ответ.";
+                    return result.candidates?.[0]?.content?.parts?.[0]?.text || "AI вернул пустой ответ.";
                 } catch (e) {
-                    if (i === 4) throw e;
+                    if (i === 4) return `Ошибка: ${e.message}. Попробуйте VPN или проверьте ключ.`;
                     await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
                 }
             }
@@ -553,7 +544,7 @@
                 else prompt = `Кратко прокомментируй последние записи пользователя (макс 200 симв). Без Markdown.`;
                 const response = await fetchAI(prompt);
                 box.innerText = response;
-            } catch (err) { box.innerText = "Ошибка API. Проверьте ключ."; }
+            } catch (err) { box.innerText = "Системная ошибка. Попробуйте обновить страницу."; }
             finally { box.classList.remove('loading-pulse'); ico?.classList.remove('anim-rotate'); }
         }
 
@@ -563,16 +554,15 @@
             renderChart();
         }
 
-        // СОХРАНЕНИЕ / ОБНОВЛЕНИЕ
         document.getElementById('save-entry').addEventListener('click', () => {
+            const noteVal = document.getElementById('mood-note').value;
             const newEntry = {
                 id: editId || Date.now(),
                 mood: selectedMood,
                 stress: selectedStress,
-                note: document.getElementById('mood-note').value,
+                note: noteVal,
                 date: new Date(document.getElementById('entry-date').value).toISOString()
             };
-
             if (editId) {
                 entries = entries.map(e => e.id === editId ? newEntry : e);
                 showToast("Запись обновлена");
@@ -580,7 +570,6 @@
                 entries.unshift(newEntry);
                 showToast("Запись сохранена");
             }
-            
             localStorage.setItem('ms_entries', JSON.stringify(entries));
             resetForm();
             updateUI();
@@ -685,7 +674,7 @@
         document.getElementById('save-settings').addEventListener('click', () => {
             localStorage.setItem('ms_api', document.getElementById('api-key').value.trim());
             document.getElementById('modal-settings').classList.add('hidden');
-            showToast("Сохранено");
+            showToast("Ключ сохранен");
             playClick();
         });
 
@@ -702,9 +691,7 @@
             document.querySelector('[data-mood="3"]').classList.add('active');
             document.querySelector('[data-stress="1"]').classList.add('active');
         }
-
         window.onload = init;
     </script>
 </body>
 </html>
-
