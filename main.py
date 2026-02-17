@@ -8,7 +8,7 @@ from aiogram.exceptions import TelegramBadRequest
 
 # Конфигурация
 TOKEN = os.getenv("BOT_TOKEN")
-OWNER_ID = 964200005  # Твой ID
+OWNER_ID = 964200005 
 CONFIG_FILE = "bot_config.json"
 
 logging.basicConfig(level=logging.INFO)
@@ -16,14 +16,15 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# Функция для загрузки настроек из файла
 def load_config():
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r") as f:
-            return json.load(f)
+            try:
+                return json.load(f)
+            except:
+                pass
     return {"target_channel": -1001003028461152, "target_group": None}
 
-# Функция для сохранения настроек
 def save_config(new_config):
     with open(CONFIG_FILE, "w") as f:
         json.dump(new_config, f)
@@ -46,18 +47,26 @@ async def is_chat_admin(chat_id: int, user_id: int):
     except Exception:
         return False
 
+# --- КОМАНДЫ ---
+
 @dp.message(Command("start"))
 async def start_handler(message: types.Message):
     if message.from_user.id != OWNER_ID:
         return
     
     help_text = (
-        "Команды управления ботом:\n\n"
-        "1. /set_channel [ID] — установить ID канала для проверки (например, /set_channel -100123)\n"
-        "2. /set_group — напиши это В ГРУППЕ, которую нужно защищать\n"
-        "3. /status — показать текущие настройки"
+        "Команды управления:\n"
+        "/set_channel [ID] — сменить канал\n"
+        "/set_group — (в группе) защищать этот чат\n"
+        "/status — проверить текущие ID"
     )
     await message.answer(help_text)
+
+@dp.message(Command("status"))
+async def status_cmd(message: types.Message):
+    if message.from_user.id != OWNER_ID:
+        return
+    await message.answer(f"Канал: {config['target_channel']}\nГруппа: {config['target_group']}")
 
 @dp.message(Command("set_channel"))
 async def set_channel_cmd(message: types.Message):
@@ -65,12 +74,9 @@ async def set_channel_cmd(message: types.Message):
         return
     args = message.text.split()
     if len(args) > 1:
-        try:
-            config["target_channel"] = int(args[1])
-            save_config(config)
-            await message.answer(f"Канал для проверки сохранен: {config['target_channel']}")
-        except ValueError:
-            await message.answer("Ошибка: ID должен быть числом.")
+        config["target_channel"] = int(args[1])
+        save_config(config)
+        await message.answer("Канал обновлен.")
 
 @dp.message(Command("set_group"))
 async def set_group_cmd(message: types.Message):
@@ -78,38 +84,49 @@ async def set_group_cmd(message: types.Message):
         return
     config["target_group"] = message.chat.id
     save_config(config)
-    await message.answer(f"Защита установлена для этого чата (ID: {message.chat.id})")
+    await message.answer(f"Этот чат (ID: {message.chat.id}) теперь под защитой.")
 
-@dp.message(Command("status"))
-async def status_cmd(message: types.Message):
-    if message.from_user.id != OWNER_ID:
-        return
-    await message.answer(f"Текущий канал: {config['target_channel']}\nТекущая группа: {config['target_group']}")
+# --- ОСНОВНОЙ ФИЛЬТР ---
 
 @dp.message(F.chat.type.in_({"group", "supergroup"}))
 async def message_filter(message: types.Message):
-    # ПРОВЕРКА ВЛАДЕЛЬЦА (тебя)
-    if int(message.from_user.id) == int(OWNER_ID):
+    # 1. Игнорируем команды (чтобы они работали и не удалялись)
+    if message.text and message.text.startswith("/"):
         return
 
-    # Если группа не та, что в настройках — игнорируем
+    # 2. Игнорируем автоматическую пересылку из канала в группу
+    if message.is_automatic_forward:
+        return
+
+    # 3. Игнорируем сообщения от лица самого канала или группы (анонимные админы)
+    if message.sender_chat:
+        # Если ID отправителя совпадает с ID группы или нашего канала — пропускаем
+        if message.sender_chat.id == message.chat.id or message.sender_chat.id == config["target_channel"]:
+            return
+
+    # 4. Проверка владельца по ID
+    if message.from_user and message.from_user.id == OWNER_ID:
+        return
+
+    # 5. Если чат не тот, что мы защищаем — ничего не делаем
     if config["target_group"] and message.chat.id != config["target_group"]:
         return
 
-    # Проверка админов группы
-    if await is_chat_admin(message.chat.id, message.from_user.id):
+    # 6. Проверка обычных админов
+    if message.from_user and await is_chat_admin(message.chat.id, message.from_user.id):
         return
 
-    is_subscribed = await check_subscription(message.from_user.id)
-    
-    if not is_subscribed:
-        try:
-            await message.delete()
-            warning = await message.answer(f"{message.from_user.first_name}, подпишитесь на канал!")
-            await asyncio.sleep(7)
-            await warning.delete()
-        except TelegramBadRequest:
-            pass
+    # 7. Проверка подписки
+    if message.from_user:
+        is_subscribed = await check_subscription(message.from_user.id)
+        if not is_subscribed:
+            try:
+                await message.delete()
+                warning = await message.answer(f"{message.from_user.first_name}, подпишитесь на канал, чтобы писать!")
+                await asyncio.sleep(5)
+                await warning.delete()
+            except TelegramBadRequest:
+                pass
 
 async def main():
     try:
