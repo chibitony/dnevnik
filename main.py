@@ -19,10 +19,8 @@ dp = Dispatcher()
 def load_config():
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r") as f:
-            try:
-                return json.load(f)
-            except:
-                pass
+            try: return json.load(f)
+            except: pass
     return {"target_channel": -1001003028461152, "target_group": None}
 
 def save_config(new_config):
@@ -36,8 +34,10 @@ async def check_subscription(user_id: int):
         return True
     try:
         member = await bot.get_chat_member(chat_id=config["target_channel"], user_id=user_id)
-        return member.status in ["member", "administrator", "creator"]
-    except Exception:
+        # Учитываем все активные статусы
+        return member.status in ["member", "administrator", "creator", "restricted"]
+    except Exception as e:
+        logging.error(f"Ошибка проверки подписки: {e}")
         return False
 
 async def is_chat_admin(chat_id: int, user_id: int):
@@ -47,93 +47,82 @@ async def is_chat_admin(chat_id: int, user_id: int):
     except Exception:
         return False
 
-# --- КОМАНДЫ ---
+# --- КОМАНДЫ (ТОЛЬКО ДЛЯ ТЕБЯ) ---
 
-@dp.message(Command("start"))
+@dp.message(Command("start", "help"))
 async def start_handler(message: types.Message):
-    if message.from_user.id != OWNER_ID:
-        return
-    
-    help_text = (
-        "Команды управления:\n"
-        "/set_channel [ID] — сменить канал\n"
-        "/set_group — (в группе) защищать этот чат\n"
-        "/status — проверить текущие ID"
-    )
-    await message.answer(help_text)
+    if message.from_user.id == OWNER_ID:
+        await message.answer("Команды: /set_channel [ID], /set_group, /status")
 
 @dp.message(Command("status"))
 async def status_cmd(message: types.Message):
     if message.from_user.id != OWNER_ID:
         return
-    await message.answer(f"Канал: {config['target_channel']}\nГруппа: {config['target_group']}")
+    
+    # Проверка связи с каналом
+    try:
+        await bot.get_chat(config["target_channel"])
+        channel_status = "✅ Доступ есть"
+    except:
+        channel_status = "❌ Нет доступа (сделайте бота админом в канале!)"
+        
+    await message.answer(
+        f"Текущие настройки:\n"
+        f"Канал: {config['target_channel']} ({channel_status})\n"
+        f"Группа: {config['target_group']}"
+    )
 
 @dp.message(Command("set_channel"))
 async def set_channel_cmd(message: types.Message):
-    if message.from_user.id != OWNER_ID:
-        return
-    args = message.text.split()
-    if len(args) > 1:
-        config["target_channel"] = int(args[1])
-        save_config(config)
-        await message.answer("Канал обновлен.")
+    if message.from_user.id == OWNER_ID:
+        args = message.text.split()
+        if len(args) > 1:
+            config["target_channel"] = int(args[1])
+            save_config(config)
+            await message.answer("ID канала обновлен.")
 
 @dp.message(Command("set_group"))
 async def set_group_cmd(message: types.Message):
-    if message.from_user.id != OWNER_ID:
-        return
-    config["target_group"] = message.chat.id
-    save_config(config)
-    await message.answer(f"Этот чат (ID: {message.chat.id}) теперь под защитой.")
+    if message.from_user.id == OWNER_ID:
+        config["target_group"] = message.chat.id
+        save_config(config)
+        await message.answer("Этот чат теперь под защитой.")
 
-# --- ОСНОВНОЙ ФИЛЬТР ---
+# --- ФИЛЬТР СООБЩЕНИЙ ---
 
-@dp.message(F.chat.type.in_({"group", "supergroup"}))
-async def message_filter(message: types.Message):
-    # 1. Игнорируем команды (чтобы они работали и не удалялись)
-    if message.text and message.text.startswith("/"):
-        return
-
-    # 2. Игнорируем автоматическую пересылку из канала в группу
-    if message.is_automatic_forward:
+@dp.message()
+async def main_filter(message: types.Message):
+    # 1. Если это не группа, которую мы защищаем — игнорируем (для ЛС)
+    if message.chat.type not in ["group", "supergroup"]:
         return
 
-    # 3. Игнорируем сообщения от лица самого канала или группы (анонимные админы)
+    # 2. Игнорируем системные сообщения и пересылки из канала
+    if message.is_automatic_forward or not message.from_user:
+        return
+
+    # 3. Игнорируем анонимных админов (от лица группы/канала)
     if message.sender_chat:
-        # Если ID отправителя совпадает с ID группы или нашего канала — пропускаем
-        if message.sender_chat.id == message.chat.id or message.sender_chat.id == config["target_channel"]:
-            return
-
-    # 4. Проверка владельца по ID
-    if message.from_user and message.from_user.id == OWNER_ID:
         return
 
-    # 5. Если чат не тот, что мы защищаем — ничего не делаем
-    if config["target_group"] and message.chat.id != config["target_group"]:
+    # 4. Пропускаем ТЕБЯ (владельца)
+    if message.from_user.id == OWNER_ID:
         return
 
-    # 6. Проверка обычных админов
-    if message.from_user and await is_chat_admin(message.chat.id, message.from_user.id):
+    # 5. Пропускаем админов группы
+    if await is_chat_admin(message.chat.id, message.from_user.id):
         return
 
-    # 7. Проверка подписки
-    if message.from_user:
-        is_subscribed = await check_subscription(message.from_user.id)
-        if not is_subscribed:
-            try:
-                await message.delete()
-                warning = await message.answer(f"{message.from_user.first_name}, подпишитесь на канал, чтобы писать!")
-                await asyncio.sleep(5)
-                await warning.delete()
-            except TelegramBadRequest:
-                pass
-
-async def main():
-    try:
-        await dp.start_polling(bot)
-    finally:
-        await bot.session.close()
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    # 6. Проверяем подписку
+    is_subscribed = await check_subscription(message.from_user.id)
     
+    if not is_subscribed:
+        try:
+            await message.delete()
+            # Предупреждение (только если это не команда, чтобы не спамить)
+            if not (message.text and message.text.startswith("/")):
+                warn = await message.answer(f"{message.from_user.first_name}, подпишитесь на канал!")
+                await asyncio.sleep(5)
+                await warn.delete()
+        except TelegramBadRequest:
+            pass
+            
