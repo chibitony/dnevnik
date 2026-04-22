@@ -150,8 +150,17 @@ async def main_filter(message: types.Message):
                     save_warnings(warnings)
         except: pass
 
+
+
+
 async def main():
+    await bot.delete_webhook(drop_pending_updates=True)
+    
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import asyncio
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Бот выключен")
