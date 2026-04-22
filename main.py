@@ -14,7 +14,13 @@ CONFIG_FILE = "bot_config.json"
 WARNINGS_FILE = "warnings.json"
 
 logging.basicConfig(level=logging.INFO)
-bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
+from aiogram.client.session.aiohttp import AiohttpSession
+session = AiohttpSession(timeout=60) 
+bot = Bot(
+    token=TOKEN, 
+    session=session, 
+    default=DefaultBotProperties(parse_mode="HTML")
+)
 dp = Dispatcher()
 
 def load_config():
