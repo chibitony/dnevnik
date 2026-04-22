@@ -160,13 +160,19 @@ async def main_filter(message: types.Message):
 
 
 async def main():
-    await bot.delete_webhook(drop_pending_updates=True)
-    
-    await dp.start_polling(bot)
+    try:
+
+        await bot.delete_webhook(drop_pending_updates=True)
+
+        await dp.start_polling(bot)
+    finally:
+
+        await bot.session.close()
 
 if __name__ == "__main__":
     import asyncio
     try:
         asyncio.run(main())
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, SystemExit):
         print("Бот выключен")
+
